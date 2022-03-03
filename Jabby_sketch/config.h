@@ -8,7 +8,7 @@
 #define GSM_TX_PIN D1
 #define LED_PIN D4
 
-const PROGMEM char* VERSION = "Jabby_0.1.6";
+const PROGMEM char* VERSION = "Jabby_0.1.7";
 const PROGMEM char* NAME ="Jabby";
 
 const PROGMEM char*  DATA_FILENAME = "/data.json";
