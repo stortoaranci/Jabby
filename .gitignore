@@ -1,0 +1,9 @@
+# Kicad backup files
+*.sch-bak
+
+# Kicad cache
+/kicad/fp-info-cache
+
+# Customizing
+/Jabby_sketch/data/data.json
+/Jabby_sketch/secrets.h
