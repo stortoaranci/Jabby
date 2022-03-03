@@ -99,9 +99,13 @@ int intGSMInput = 0;
 long lngGSMResetTime = 0;
 
 //Control Panel
-uint8_t cpStatus =   0xFF; //last known CP status
+uint8_t cpStatus = 0xFF; //last known CP status
+uint8_t cpUpToDate = 0;  // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
+uint8_t cpInfo =   0xFF; //last known CP info
+bool isCPInfo = false;
+uint8_t device =   0xFF; //last device triggered (51 = Control Panel 0x33)
+bool isDevice = false;
 
-uint8_t cpUpToDate = 0;         // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
 long lngLastCPUpdateTime = 0;   //last update time
 
 bool setStringVariable(int terminal, char* variable, const char* value, size_t size, charRestriction r) {
@@ -175,7 +179,31 @@ bool sendMessage(AsyncClient* client) {
 }
 
 //MQTT
-void mqttRefresh() {
+void mqttRefreshInfo() {
+
+  String t;
+  String s;
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_WARNING;
+  s = String((cpInfo & SERIAL_PK_WARNING) == SERIAL_PK_WARNING);
+  mqttClient.publish(t.c_str(), s.c_str());
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_BATTERY;
+  s = String((cpInfo & SERIAL_PK_BATTERY) == SERIAL_PK_BATTERY);
+  mqttClient.publish(t.c_str(), s.c_str());
+}
+
+void mqttRefreshDevice() {
+
+  String t;
+  String s;
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_DEVICE;
+  s = String(device);
+  mqttClient.publish(t.c_str(), s.c_str());
+}
+
+void mqttRefreshAlarm() {
 
   String t;
   String s;
@@ -184,15 +212,13 @@ void mqttRefresh() {
   s = String(cpUpToDate != 0);
   mqttClient.publish(t.c_str(), s.c_str());
 
-  t = MQTT_PREFIX + WiFi.hostname() + MQTT_ALARM + + MQTT_STATE;
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_ALARM + MQTT_STATE;
   s = mqttStateToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
 }
 
-
 boolean mqttReconnect() {
-
 
   if (mqttClient.connect(WiFi.hostname().c_str(), strMQTTUser, strMQTTPassword)) {
 
@@ -219,7 +245,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
     memcpy(p, (char*)payload, len);
 
     if (!strcmp(MQTT_PAYLOAD_ANNOUNCE, p)) {
-      mqttRefresh();
+      mqttRefreshAlarm();
+      mqttRefreshInfo();
     }
   } else {
     if (cpUpToDate) {
@@ -1294,7 +1321,8 @@ void loop() {
   //MQTT
   if (!mqttClient.connected() && (m > lngLastReconnectAttempt + MQTT_RECONNECT_TIMER)) {
     if (mqttReconnect()) {
-      mqttRefresh();
+      mqttRefreshAlarm();
+      mqttRefreshInfo();
     } else {
       lngLastReconnectAttempt = m;
     }
@@ -1306,9 +1334,26 @@ void loop() {
     }
   }
 
-  if ((m - lngLastPublishAttempt > MQTT_PUBLISH_TIMER) || cpUpToDate == 2) {
+  if (m - lngLastPublishAttempt > MQTT_PUBLISH_TIMER) {
     lngLastPublishAttempt = m;
-    mqttRefresh();
+    
+    //refresh all
+    mqttRefreshAlarm();
+    mqttRefreshInfo();
+    mqttRefreshDevice();
+  } else{
+    if (cpUpToDate == 2) {
+      //refresh alarm state
+      mqttRefreshAlarm();
+    }
+    if (isCPInfo) {
+      //refresh alarm state
+      mqttRefreshInfo();
+    }
+    if (isDevice) {
+      //refresh device state
+      mqttRefreshDevice();
+    }    
   }
 
   // get data from rs485
@@ -1387,6 +1432,15 @@ void loop() {
                     lngLastCPUpdateTime = m;
                     cpUpToDate = (cpStatus == serMessage[1]) ? cpUpToDate = 1 : cpUpToDate = 2;
                     cpStatus = serMessage[1];
+
+                    //get Device
+                    isDevice = (device != serMessage[3]);
+                    device = serMessage[3];
+                    
+                    //get info from Control Panel
+                    isCPInfo = (cpInfo != serMessage[4]);
+                    cpInfo = serMessage[4];
+                    
                     break;
 
                   case 0xE3: case 0xE4: case 0xE7:
@@ -1518,6 +1572,8 @@ void loop() {
     //data expired
     lngLastCPUpdateTime = m;
     cpUpToDate = 0;
+    isCPInfo = false;
+    isDevice = false;
   }
 
   // check reset GSM command status

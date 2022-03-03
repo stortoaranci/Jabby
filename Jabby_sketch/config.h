@@ -8,7 +8,7 @@
 #define GSM_TX_PIN D1
 #define LED_PIN D4
 
-const PROGMEM char* VERSION = "Jabby_0.1.7";
+const PROGMEM char* VERSION = "Jabby_0.1.5";
 const PROGMEM char* NAME ="Jabby";
 
 const PROGMEM char*  DATA_FILENAME = "/data.json";
@@ -36,6 +36,9 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_MODE_MASTER             0x20
 #define SERIAL_PK_MODE_NORMAL_UNSPLITTED  0x40
 #define SERIAL_PK_MODE_NORMAL_SPLITTED    0x60
+#define SERIAL_PK_WARNING                 0x30
+#define SERIAL_PK_BATTERY                 1
+
 
 #define SERIAL_SEQ_LEN 16
 
@@ -114,6 +117,9 @@ const PROGMEM char* MQTT_PAYLOAD_ARM_NIGHT="ARM_NIGHT"; //"B";
 const PROGMEM char* MQTT_PAYLOAD_DISARM="DISARM";
 const PROGMEM char* MQTT_PAYLOAD_TRIGGER="TRIGGER";
 const PROGMEM char* MQTT_PAYLOAD_ANNOUNCE="announce";
+const PROGMEM char* MQTT_DEVICE="/device";
+const PROGMEM char* MQTT_INFO_WARNING="/warning";
+const PROGMEM char* MQTT_INFO_BATTERY="/battery";
 
 
 typedef enum {
