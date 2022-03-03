@@ -1,0 +1,35 @@
+HELP:
+	e <command> <value>	Executes command
+	h			Displays this message
+	i			Displays the system's info
+	k			Reset GSM
+	l			Loads the saved configuration
+	m			Toggles subscription to server's messages
+	q			Quits 
+	r			Reboots
+	s			Saves current configuration
+	S			Toggles subscription to RS485 traffic
+	t <type>		Trigger alarm (0=None; 1=Device; 2=Tamper)
+	v <variable> <value>	Set a variable to the specified value.
+	u			Check for updates and performs the update if necessary
+
+VARIABLES:
+	ACCESS_CODE		Access code for arm/disam
+	GSM_ENABLE		Enable/Disable GSM features
+	MQTT_SERVER		MQTT server IP address or DNS name
+	MQTT_PORT		MQTT TCP port
+	MQTT_USER		MQTT user
+	MQTT_PASSWORD		MQTT password
+	OTA_WEB_SERVER		OTA web server IP address or DNS name
+	OTA_WEB_PORT		OTA TCP port
+	OTA_WEB_PAGE		OTA destination webpage (ie: "/ota.htm")
+	TCP_PASSWORD		Console password
+	TCP_PORT		Console TCP port
+	WIFI_SSID		WiFi SSID
+	WIFI_PASSWORD		WiFi password
+
+COMMANDS:
+	at <text>		AT command to GSM.
+	s  <text>		Submits a key sequence
+	rw <value>		Raw command to CP. Ie: e rw  143 255 128 255
+	
