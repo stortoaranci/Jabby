@@ -19,9 +19,14 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define MAX_TCP_MESSAGE_LEN   128
 #define MAX_TCP_AUTH_ATTEMPTS 3
 
+//default values
+#define GSM_ENABLE         1
+#define SET_WO_ACCESS_CODE 1
+
 //SERIAL
 #define SERIAL_PK_LEN 24
 
+//byte [1]
 #define SERIAL_PK_BEGIN_MASK              0x80
 #define SERIAL_PK_END                     0xFF
 #define SERIAL_PK_ARMED_MASK              0x03
@@ -36,16 +41,31 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_MODE_MASTER             0x20
 #define SERIAL_PK_MODE_NORMAL_UNSPLITTED  0x40
 #define SERIAL_PK_MODE_NORMAL_SPLITTED    0x60
-#define SERIAL_PK_WARNING                 0x30
-#define SERIAL_PK_BATTERY                 1
 
+// byte [4]
+#define SERIAL_PK_BATTERY                 1
+#define SERIAL_PK_C                       2
+#define SERIAL_PK_B                       4
+#define SERIAL_PK_A                       8
+#define SERIAL_PK_WARNING                 0x30
+
+//tampering
+#define SERIAL_PK_KP_TAMPER               0xB2
 
 #define SERIAL_SEQ_LEN 16
+#define SERIAL_SEQ_EOF 0xFF
+
 
 //BUS
 #define BUS_FREE              0
-#define BUS_WAITING_RESPONSE  1
-#define BUS_BUSY              2
+#define BUS_IGNORE_ACK        1
+#define BUS_WAITING_ACK       2
+#define BUS_BUSY              4
+
+
+//COMMANDS
+#define SER_CMD_SEND_ONLY         0     //waits for 0xA0
+#define SER_CMD_SEND_RECEIVE      1     //waits for 0xA1
 
 //GSM
 typedef enum {
@@ -70,6 +90,15 @@ typedef enum {
 #define TRIGGER_NONE    55
 #define TRIGGER_DEVICE  150
 #define TRIGGER_TAMPER  0
+
+//ARM COMMANDS
+typedef enum {
+  armNone        =0,
+  armABC         =1,
+  armA           =2,
+  armB           =3
+} armCommand;
+
 
 //STRINGS
 const PROGMEM char* STR_N ="\n";
@@ -100,9 +129,6 @@ const PROGMEM char* STR_MQTT_TRIGGERED ="triggered";
 const PROGMEM char* STR_MQTT_ARMING ="arming";
 const PROGMEM char* STR_MQTT_DISARMING ="disarming";
 //const PROGMEM char* STR_MQTT_PENDING ="pending";
-const PROGMEM char* STR_ARM_ABC_COMMAND ="*1";
-const PROGMEM char* STR_ARM_A_COMMAND ="*2";
-const PROGMEM char* STR_ARM_B_COMMAND ="*3";
 const PROGMEM char* STR_COMMAND_PREFIX ="*";
 
 //MQTT
@@ -115,12 +141,25 @@ const PROGMEM char* MQTT_PAYLOAD_ARM_AWAY="ARM_AWAY"; //"ABC";
 const PROGMEM char* MQTT_PAYLOAD_ARM_HOME="ARM_HOME"; //"A";
 const PROGMEM char* MQTT_PAYLOAD_ARM_NIGHT="ARM_NIGHT"; //"B";
 const PROGMEM char* MQTT_PAYLOAD_DISARM="DISARM";
-const PROGMEM char* MQTT_PAYLOAD_TRIGGER="TRIGGER";
+const PROGMEM char* MQTT_PAYLOAD_TRIGGER="TRIGGER";     //device
+const PROGMEM char* MQTT_PAYLOAD_TRIGGER_2="TRIGGER_2"; //tampter
+const PROGMEM char* MQTT_PAYLOAD_TRIGGER_3="TRIGGER_3"; //Key pad tampter simulation
 const PROGMEM char* MQTT_PAYLOAD_ANNOUNCE="announce";
+
+const PROGMEM char* MQTT_MODE="/mode";
+const PROGMEM char* MQTT_ARMED="/armed";
+const PROGMEM char* MQTT_FIRED="/fired";
+const PROGMEM char* MQTT_TRIGGERED="/triggered";
+const PROGMEM char* MQTT_DELAYED="/delayed";
+
 const PROGMEM char* MQTT_DEVICE="/device";
 const PROGMEM char* MQTT_INFO_WARNING="/warning";
 const PROGMEM char* MQTT_INFO_BATTERY="/battery";
+const PROGMEM char* MQTT_INFO_A="/a";
+const PROGMEM char* MQTT_INFO_B="/b";
+const PROGMEM char* MQTT_INFO_C="/c";
 
+const PROGMEM char* MQTT_MESSAGE="/message";
 
 typedef enum {
   charAllowAll        =0,
@@ -146,6 +185,8 @@ const PROGMEM char* ERR_CHECK_UPDATE ="[E114]-Unable to update.\n";
 const PROGMEM char* ERR_INCOMING_DATA ="[E115]-Error in serial incoming data.\n";
 const PROGMEM char* ERR_SEQUENCE_REJECTED ="[E116]-Sequence rejected or expired.\n";
 const PROGMEM char* ERR_SEQUENCE_CANCELLED ="[E117]-Sequence aborted.\n";
+const PROGMEM char* ERR_UNKNOWN_DATA ="[E118]-Unknown data.\n";
+const PROGMEM char* ERR_TRIGGER ="[E118]-Unable to trigger alarm.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
@@ -166,3 +207,4 @@ const PROGMEM char* LBL_WIFI_PASSWORD ="WIFI_PASSWORD";
 const PROGMEM char* LBL_WIFI_SSID ="WIFI_SSID";
 const PROGMEM char* LBL_GSM_ENABLE ="GSM_ENABLE";
 const PROGMEM char* LBL_ACCESS_CODE ="ACCESS_CODE";
+const PROGMEM char* LBL_SET_WO_ACCESS_CODE ="SET_WO_ACCESS_CODE";

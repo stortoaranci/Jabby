@@ -12,6 +12,7 @@
   "WIFI_SSID": "wifissid",
   "MQTT_SERVER": "192.168.0.10",
   "MQTT_PORT": "1883",
-  "ACCESS_CODE": "1234"
-  "GSM_ENABLE": "1"
+  "ACCESS_CODE": "1234",
+  "GSM_ENABLE": "1",
+  "SET_WO_ACCESS_CODE": "1"
 }

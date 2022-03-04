@@ -9,7 +9,7 @@ HELP:
 	r			Reboots
 	s			Saves current configuration
 	S			Toggles subscription to RS485 traffic
-	t <type>		Trigger alarm (0=None; 1=Device; 2=Tamper)
+	t <value>		Trigger alarm (0=None; 1=Device; 2=Tamper; 3=Key Pad simulation)
 	v <variable> <value>	Set a variable to the specified value.
 	u			Check for updates and performs the update if necessary
 
@@ -23,12 +23,14 @@ VARIABLES:
 	OTA_WEB_SERVER		OTA web server IP address or DNS name
 	OTA_WEB_PORT		OTA TCP port
 	OTA_WEB_PAGE		OTA destination webpage (ie: "/ota.htm")
+	SET_WO_ACCESS_CODE	Set without access code
 	TCP_PASSWORD		Console password
 	TCP_PORT		Console TCP port
 	WIFI_SSID		WiFi SSID
 	WIFI_PASSWORD		WiFi password
 
 COMMANDS:
+	a <value>		Set alarm (0=None; 1=ABC; 2=A; 3=C)
 	at <text>		AT command to GSM.
 	s  <text>		Submits a key sequence
 	rw <value>		Raw command to CP. Ie: e rw  143 255 128 255

@@ -16,6 +16,7 @@
 char strMQTTServer[50] =  "\0"; //MQTT_SERVER;
 int intMQTTPort = MQTT_PORT;
 uint8_t intGSMEnable = GSM_ENABLE;
+uint8_t intSetWOAccessCode = SET_WO_ACCESS_CODE;
 char strMQTTUser[50] = "\0"; //MQTT_USER;
 char strMQTTPassword[50] =  "\0"; //MQTT_PASSWORD;
 //char strOTAPassword[50]=  "\0"; //OTA_PASSWORD;
@@ -91,6 +92,7 @@ uint8_t serSequence[SERIAL_SEQ_LEN];
 uint8_t serSeqLen = SERIAL_SEQ_LEN; //just over the end of the array
 uint8_t busStatus = 0;
 long lngLastCommandSent = 0;
+uint8_t serCMDType = SER_CMD_SEND_ONLY;
 
 //GSM
 SoftwareSerial ssGSM;
@@ -103,7 +105,7 @@ uint8_t cpStatus = 0xFF; //last known CP status
 uint8_t cpUpToDate = 0;  // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
 uint8_t cpInfo =   0xFF; //last known CP info
 bool isCPInfo = false;
-uint8_t device =   0xFF; //last device triggered (51 = Control Panel 0x33)
+uint8_t device =   0xFF; //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
 bool isDevice = false;
 
 long lngLastCPUpdateTime = 0;   //last update time
@@ -191,6 +193,18 @@ void mqttRefreshInfo() {
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_BATTERY;
   s = String((cpInfo & SERIAL_PK_BATTERY) == SERIAL_PK_BATTERY);
   mqttClient.publish(t.c_str(), s.c_str());
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_A;
+  s = String((cpInfo & SERIAL_PK_A) == SERIAL_PK_A);
+  mqttClient.publish(t.c_str(), s.c_str());
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_B;
+  s = String((cpInfo & SERIAL_PK_B) == SERIAL_PK_B);
+  mqttClient.publish(t.c_str(), s.c_str());
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_C;
+  s = String((cpInfo & SERIAL_PK_C) == SERIAL_PK_C);
+  mqttClient.publish(t.c_str(), s.c_str());  
 }
 
 void mqttRefreshDevice() {
@@ -216,6 +230,27 @@ void mqttRefreshAlarm() {
   s = mqttStateToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
+  //sensors
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_MODE;
+  s = String(cpModeToString());
+  mqttClient.publish(t.c_str(), s.c_str());  
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_ARMED;
+  s = String(cpArmedToString());
+  mqttClient.publish(t.c_str(), s.c_str());  
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_FIRED;
+  s = String((cpStatus & SERIAL_PK_FIRED)== SERIAL_PK_FIRED);
+
+  mqttClient.publish(t.c_str(), s.c_str());  
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_TRIGGERED;
+  s = String((cpStatus & SERIAL_PK_TRIGGERED) == SERIAL_PK_TRIGGERED);
+
+  mqttClient.publish(t.c_str(), s.c_str());  
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_DELAYED;
+  s = String((cpStatus & SERIAL_PK_DELAYED) == SERIAL_PK_DELAYED);
+  mqttClient.publish(t.c_str(), s.c_str());  
+  
 }
 
 boolean mqttReconnect() {
@@ -255,20 +290,32 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
         memset(p, 0, sizeof(p));
         memcpy(p, (char*)payload, len);
 
-        if (!strcmp(MQTT_PAYLOAD_ARM_AWAY, p) && (cpStatus & SERIAL_PK_MODE_MASK )) {
-          setSequence(-1, STR_ARM_ABC_COMMAND);
-        } else if (!strcmp(MQTT_PAYLOAD_ARM_HOME, p) && (cpStatus & SERIAL_PK_MODE_MASK )) {
-          setSequence(-1, STR_ARM_A_COMMAND);
-        } else if (!strcmp(MQTT_PAYLOAD_ARM_NIGHT, p) && (cpStatus & SERIAL_PK_MODE_MASK )) {
-          setSequence(-1, STR_ARM_B_COMMAND);
-        } else if (!strcmp(MQTT_PAYLOAD_DISARM, p) && (cpStatus & SERIAL_PK_ARMED_MASK )) {
+        if (!strcmp(MQTT_PAYLOAD_ARM_AWAY, p)) {
+          setAlarm(-1, armABC);
+        } else if (!strcmp(MQTT_PAYLOAD_ARM_HOME, p)) {
+          setAlarm(-1, armA);
+        } else if (!strcmp(MQTT_PAYLOAD_ARM_NIGHT, p)) {
+          setAlarm(-1, armB);
+        } else if (!strcmp(MQTT_PAYLOAD_DISARM, p)) {
           //disarm
-          setSequence(-1, strAccessCode);
+          setAlarm(-1, armNone);
         } else if (!strcmp(MQTT_PAYLOAD_TRIGGER, p) ) {
-          //trigger
+          //trigger device
           triggerAlarm(1);
           delay (TRIGGER_INTERVAL_TIMER);
           triggerAlarm(0);
+        } else if (!strcmp(MQTT_PAYLOAD_TRIGGER_2, p) ) {
+          //trigger device
+          triggerAlarm(2);
+          delay (TRIGGER_INTERVAL_TIMER);
+          triggerAlarm(0);
+        } else if (!strcmp(MQTT_PAYLOAD_TRIGGER_3, p) ) {
+          //trigger device
+          if (!triggerAlarm(3)){
+            if (intSub) {
+              createMessage (intSub, ERR_TRIGGER, strlen(ERR_TRIGGER));
+            }
+          }
         }
 
       } // !strcmp(strMQTTCommandTopic.c_str(), topic)
@@ -277,7 +324,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   } //!strcmp(MQTT_PAYLOAD_ANNOUNCE,p)
 
 }
-
 
 /* clients events */
 static void handleError(void* arg, AsyncClient* client, int8_t error) {
@@ -401,7 +447,6 @@ static void handleNewClient(void* arg, AsyncClient* client) {
   }
 }
 
-
 String mqttStateToString () {
   if (cpStatus & SERIAL_PK_FIRED) {
     return STR_MQTT_TRIGGERED;
@@ -482,6 +527,10 @@ String cpArmedToString() {
   }
 }
 
+String cpUpToDateToString() {
+  return (cpUpToDate) ? STR_YES : STR_NO;
+}
+
 String cpFiredToString() {
   return (cpStatus & SERIAL_PK_FIRED ) ? STR_YES : STR_NO;
 }
@@ -494,20 +543,54 @@ String cpDelayedToString() {
   return (cpStatus & SERIAL_PK_DELAYED) ? STR_YES : STR_NO;
 }
 
+String cpWarningToString() {
+  return (cpInfo & SERIAL_PK_WARNING ) ? STR_YES : STR_NO;
+}
+
+String cpBatteryToString() {
+  return (cpInfo & SERIAL_PK_BATTERY ) ? STR_YES : STR_NO;
+}
+
+String cpAToString() {
+  return (cpInfo & SERIAL_PK_A ) ? STR_ON : STR_OFF;
+}
+
+String cpBToString() {
+  return (cpInfo & SERIAL_PK_B ) ? STR_ON : STR_OFF;
+}
+
+String cpCToString() {
+  return (cpInfo & SERIAL_PK_C ) ? STR_ON : STR_OFF;
+}
+
+bool simulateKPTrigger(){
+  if (serSeqLen == SERIAL_SEQ_LEN && !busStatus) { //not running command
+    serSequence[0] = SERIAL_PK_KP_TAMPER;
+    serSequence[1] = SERIAL_SEQ_EOF;
+    serSeqLen = 0; //enable sequence
+    serCMDType =SER_CMD_SEND_ONLY;
+    return true;
+  }
+  return false;
+}
 
 //Instructions
-void triggerAlarm (uint8_t t) {
+bool triggerAlarm (uint8_t t) {
 
   switch (t) {
     case 1:
       analogWrite(TRIGGER_PIN, TRIGGER_DEVICE);
-      break;
+      return true;
     case 2:
       analogWrite(TRIGGER_PIN, TRIGGER_TAMPER);
-      break;
+      return true;
+    case 3:
+      return simulateKPTrigger();  
     default:
       analogWrite(TRIGGER_PIN, TRIGGER_NONE);
+      return true;
   }
+  return false;
 }
 
 bool initGSM() {
@@ -571,6 +654,7 @@ bool loadConfig() {
   strncpy(strMQTTServer, !doc[LBL_MQTT_SERVER].isNull() ? doc[LBL_MQTT_SERVER] : MQTT_SERVER, sizeof(strMQTTServer));
   intMQTTPort = !doc[LBL_MQTT_PORT].isNull() ? doc[LBL_MQTT_PORT] : MQTT_PORT;
   intGSMEnable = !doc[LBL_GSM_ENABLE].isNull() ? doc[LBL_GSM_ENABLE] : GSM_ENABLE;
+  intSetWOAccessCode = !doc[LBL_SET_WO_ACCESS_CODE].isNull() ? doc[LBL_SET_WO_ACCESS_CODE] : SET_WO_ACCESS_CODE;
   strncpy(strMQTTUser, !doc[LBL_MQTT_USER].isNull() ? doc[LBL_MQTT_USER] : MQTT_USER , sizeof(strMQTTUser));
   strncpy(strMQTTPassword, !doc[LBL_MQTT_PASSWORD].isNull() ? doc[LBL_MQTT_PASSWORD] : MQTT_PASSWORD, sizeof(strMQTTPassword));
   //  if (!doc[LBL_OTA_PASSWORD].isNull()) {strncpy(strOTAPassword, doc[LBL_OTA_PASSWORD], sizeof(strOTAPassword));}
@@ -595,6 +679,7 @@ bool saveConfig() {
   doc[LBL_MQTT_SERVER] = strMQTTServer;
   doc[LBL_MQTT_PORT] = intMQTTPort;
   doc[LBL_GSM_ENABLE] = intGSMEnable;
+  doc[LBL_SET_WO_ACCESS_CODE] = intSetWOAccessCode;
   doc[LBL_MQTT_USER] = strMQTTUser;
   doc[LBL_MQTT_PASSWORD] = strMQTTPassword;
   //  doc[LBL_OTA_PASSWORD] = strOTAPassword;
@@ -712,7 +797,11 @@ bool setSequence(int terminal, const char* command) {
     }
     p++;
   }
+  *p = SERIAL_SEQ_EOF; // substitute \0 with 0xFF because 0x00 is a value in a range of RS485's packet
+  
   serSeqLen = 0; //enable sequence
+  serCMDType = SER_CMD_SEND_RECEIVE;
+  
   return true;
 }
 
@@ -738,6 +827,29 @@ bool sendRawCommand(char* command) {
   delay (10);
   digitalWrite(REDE_PIN, LOW);
   return true;
+}
+
+bool setAlarm(int terminal, armCommand command){
+String s;
+  switch (command){
+    case armA: case armB: case armABC:
+      if ( !(cpStatus & SERIAL_PK_MODE_MASK) ){
+        return false;
+      }
+      s = STR_COMMAND_PREFIX + String(command);
+      if (!intSetWOAccessCode) { s+=strAccessCode;}  
+      break;
+    case armNone:
+      if (!(cpStatus & SERIAL_PK_ARMED_MASK )){
+        return false;
+      }
+      s = strAccessCode;
+      break;
+    default:
+      return false;
+  }
+  
+  return setSequence(terminal, s.c_str());
 }
 
 void setup() {
@@ -894,7 +1006,7 @@ void loop() {
   //send sequence
   if ((serSeqLen < SERIAL_SEQ_LEN) && !busStatus && !serPacketLen) {
     lngLastCommandSent = m;
-    busStatus = BUS_WAITING_RESPONSE;
+    busStatus = (serCMDType) ? BUS_WAITING_ACK: BUS_IGNORE_ACK;
     digitalWrite(REDE_PIN, HIGH);
     delay(1);
     Serial.write(serSequence[serSeqLen]);
@@ -903,7 +1015,7 @@ void loop() {
     delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
     digitalWrite(REDE_PIN, LOW);
     serSeqLen++;
-    if (!serSequence[serSeqLen]) {
+    if (serSequence[serSeqLen] == SERIAL_SEQ_EOF) {
       serSeqLen = SERIAL_SEQ_LEN;
     }
   }
@@ -1009,7 +1121,7 @@ void loop() {
 
                 //check variable
                 if (!(strcmp(ptrParameter, LBL_MQTT_USER)) || !(strcmp(ptrParameter, LBL_MQTT_PASSWORD)) ||
-                    !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) || !(strcmp(ptrParameter, LBL_GSM_ENABLE)) ||
+                    !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) || !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_SET_WO_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_SERVER)) || !(strcmp(ptrParameter, LBL_OTA_WEB_PORT)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_PAGE)) || !(strcmp(ptrParameter, LBL_TCP_PASSWORD)) || !(strcmp(ptrParameter, LBL_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_TCP_PORT)) || !(strcmp(ptrParameter, LBL_WIFI_PASSWORD)) || !(strcmp(ptrParameter, LBL_WIFI_SSID))) {
@@ -1026,7 +1138,7 @@ void loop() {
                 if (!strcmp(ptrParameter, "x") || !strcmp(ptrParameter, "y")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                   blCheckValue = true;
-                } else if (!strcmp(ptrParameter, "rw") || !strcmp(ptrParameter, "at") || !strcmp(ptrParameter, "s")) {
+                } else if (!strcmp(ptrParameter, "a") || !strcmp(ptrParameter, "at") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "rw")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                 } else {
                   //malformed command
@@ -1072,13 +1184,19 @@ void loop() {
                 blCheckCommand = setSequence(slots[inMessages[i]->terminal].terminal, slots[inMessages[i]->terminal].value);
                 //no need to send error message
 
+              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, "a")) {
+                char *p;
+                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
+                if (result >= 0 and result <= 3) {
+                  blCheckCommand = setAlarm(slots[inMessages[i]->terminal].terminal, (armCommand)result);
+                  //no need to send error message
+                }
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, "at")) {
                 blCheckCommand = sendATCommand(slots[inMessages[i]->terminal].value);
                 if (!blCheckCommand) {
                   createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
                 }
               }
-
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "h")) {
               loadHelp (inMessages[i]->terminal);
 
@@ -1086,6 +1204,7 @@ void loop() {
               //info esp
               String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGSM_ENABLE:\t\t\"") + String(intGSMEnable) +
                                F("\"\nACCESS_CODE:\t\t\"") + String(strAccessCode) +
+                               F("\"\nSET_WO_ACCESS_CODE:\t\"") + String(intSetWOAccessCode) +
                                F("\"\nMQTT_SERVER:\t\t\"") + String(strMQTTServer) + F("\"\nMQTT_PORT:\t\t\"") + String(intMQTTPort) +
                                F("\"\nMQTT_USER:\t\t\"") + String(strMQTTUser) + F("\"\nMQTT_PASSWORD:\t\t\"") + String(strMQTTPassword) +
                                F("\"\nOTA_WEB_SERVER:\t\t\"") + String(strOTAWebServer) + F("\"\nOTA_WEB_PORT:\t\t\"") + String(intOTAWebPort) + F("\"\nOTA_WEB_PAGE:\t\t\"") + String(strOTAWebPage) +
@@ -1109,14 +1228,19 @@ void loop() {
                 createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
               */
 
-
-              //Control Panel
-              strInfo = F("\nControl Panel:\nUp-to-date:\t\t") + String(cpUpToDate) + STR_N;
+              //Alarm Status
+              strInfo = F("\nAlarm Status:\nUp-to-date:\t\t") + cpUpToDateToString() + STR_N;
               if (cpUpToDate) {
                 strInfo += F("Mode:\t\t\t") + cpModeToString() + F("\nArmed:\t\t\t") + cpArmedToString() + F("\nFired:\t\t\t") + cpFiredToString() + F("\nTriggered:\t\t") + cpTriggeredToString() +
                            F("\nDelayed:\t\t") + cpDelayedToString() + STR_N;
               }
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
+
+              //Detailed info
+              strInfo = F("\nDetails:\nDevice:\t\t\t") + String(device) + STR_N + F("Warning:\t\t") + cpWarningToString() + F("\nBattery:\t\t") + cpBatteryToString() + F("\nA:\t\t\t") + cpAToString() +
+                        F("\nB:\t\t\t") + cpBToString() + F("\nC:\t\t\t") + cpCToString() + STR_N;
+              createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
+
 
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "k")) {
               resetGSM();
@@ -1154,19 +1278,14 @@ void loop() {
               char *p;
               long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
 
-              if (result >= 0 and result <= 2) {
-                if (blCheckCommand) {
-                  triggerAlarm(result);
-                } else {
-                  //createMessage (slots[inMessages[i]->terminal].terminal, ERR_CHANGE_MODE, strlen(ERR_CHANGE_MODE));
+              if (result >= 0 and result <= 3) {
+                if (!triggerAlarm(result)) {
+                  createMessage (slots[inMessages[i]->terminal].terminal, ERR_TRIGGER, strlen(ERR_TRIGGER));
+                  blCheckCommand = false;
                 }
               } else {
                 blCheckCommand = false;
                 createMessage (slots[inMessages[i]->terminal].terminal, ERR_MALFORMED_COMMAND, strlen(ERR_MALFORMED_COMMAND));
-              }
-              if (!blCheckCommand) {
-                //notify error
-                //createMessage (slots[inMessages[i]->terminal].terminal, ERR_CHANGE_MODE, strlen(ERR_CHANGE_MODE));
               }
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "q")) {
               // close connection
@@ -1209,6 +1328,18 @@ void loop() {
                 if (result >= 0 and result <= 1) {
                   blCheckCommand = true;
                   intGSMEnable = (int)result;
+
+                } else {
+                  blCheckCommand = false;
+                }
+              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_SET_WO_ACCESS_CODE)) {
+
+                char *p;
+                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
+
+                if (result >= 0 and result <= 1) {
+                  blCheckCommand = true;
+                  intSetWOAccessCode = (int)result;
 
                 } else {
                   blCheckCommand = false;
@@ -1349,10 +1480,12 @@ void loop() {
     if (isCPInfo) {
       //refresh alarm state
       mqttRefreshInfo();
+      isCPInfo = false;
     }
     if (isDevice) {
       //refresh device state
       mqttRefreshDevice();
+      isDevice = false;
     }    
   }
 
@@ -1449,16 +1582,22 @@ void loop() {
                     break;
                   case 0xE6:
                     break;
-                  case 0xEC:
+                  case 0xEC: // text declaration (ie: device rename)
+                    // EC 60 [device] [TEXT+\0] [CRC] FF
+                    //ie: EC 60 01 74 65 73 74 31 00 76 FF (renames device #1 in "test1")
                     break;
                   case 0xEF:
+                    break;
+                  case 0xE9:
                     break;
                   case 0xC7: case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD:
                     break;
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xE8: case 0xEA: case 0xEB: case 0xEE:
                     break;
+                    
+                  //data from Keypad
                   case 0xC6:
-                    //data from Keypad
+                  case SERIAL_PK_KP_TAMPER: //0xB2 tamper keypad command
                     break;
                   case 0x8F: case 0x8E: case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: case 0x88: case 0x89:
                     //Keypad *,#, 0-9
@@ -1466,7 +1605,7 @@ void loop() {
                     lngLastCommandSent = m;
                     busStatus = busStatus | BUS_BUSY;
                     // if wait response then cancel sequence
-                    if (busStatus & BUS_WAITING_RESPONSE) {
+                    if (busStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
@@ -1480,7 +1619,7 @@ void loop() {
                     lngLastCommandSent = m;
                     busStatus = busStatus | BUS_BUSY;
                     // if wait response then cancel sequence
-                    if (busStatus & BUS_WAITING_RESPONSE) {
+                    if (busStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
@@ -1504,7 +1643,7 @@ void loop() {
                     break;
                   case 0xA4:
                     //Command Expired/Cancelled/Forbidden
-                    if (busStatus & BUS_WAITING_RESPONSE) {
+                    if (busStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_REJECTED, strlen(ERR_SEQUENCE_REJECTED));
@@ -1518,7 +1657,7 @@ void loop() {
                   default:
                     //unknown packet
                     if (intSub) {
-                      createMessage (intSub, ERR_INCOMING_DATA, strlen(ERR_INCOMING_DATA));
+                      createMessage (intSub, ERR_UNKNOWN_DATA, strlen(ERR_UNKNOWN_DATA));
                     }
                 }
 
@@ -1549,7 +1688,7 @@ void loop() {
 
   if (busStatus && (m >= (lngLastCommandSent + BUS_MAX_INTERVAL_TIMER))) {
     //command expiration
-    if (busStatus & BUS_WAITING_RESPONSE) {
+    if ((busStatus & BUS_WAITING_ACK) || (busStatus & BUS_IGNORE_ACK)) {
       serSeqLen = SERIAL_SEQ_LEN;
       if (intSub) {
         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
