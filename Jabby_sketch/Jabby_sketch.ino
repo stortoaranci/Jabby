@@ -105,8 +105,10 @@ uint8_t cpStatus = 0xFF; //last known CP status
 uint8_t cpUpToDate = 0;  // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
 uint8_t cpInfo =   0xFF; //last known CP info
 bool isCPInfo = false;
-uint8_t device =   0xFF; //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
-bool isDevice = false;
+uint8_t cpDevice =   0xFF; //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
+bool isCPDevice = false;
+uint8_t cpMessage =   0xFF; //last displayed
+bool isCPMessage = false;
 
 long lngLastCPUpdateTime = 0;   //last update time
 
@@ -213,7 +215,17 @@ void mqttRefreshDevice() {
   String s;
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_DEVICE;
-  s = String(device);
+  s = String(cpDevice);
+  mqttClient.publish(t.c_str(), s.c_str());
+}
+
+void mqttRefreshMessage() {
+
+  String t;
+  String s;
+
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_MESSAGE;
+  s = cpMessageToString();
   mqttClient.publish(t.c_str(), s.c_str());
 }
 
@@ -483,6 +495,34 @@ String gsmStatusToString (gsmState state) {
         return STR_DISABLED;
       }
   }
+}
+
+String cpMessageToString(){
+  switch (cpMessage){
+    case 0:
+      return STR_0;
+    case 2:
+      return SER_MSG_02;
+    case 5:
+      return SER_MSG_05;
+    case 0x11:
+      return SER_MSG_11;
+    case 0x14:
+      return SER_MSG_14;
+    case 0x33:
+      return SER_MSG_33;
+    case 0x34:
+      return SER_MSG_34;
+    case 0x38:
+      return SER_MSG_38;
+    case 0x39:
+      return SER_MSG_39;
+    case 0x3A:
+      return SER_MSG_3A;
+    case 0x3F:
+      return SER_MSG_3F;    
+  }
+  return String(cpMessage);
 }
 
 String cpModeToString() {
@@ -1237,8 +1277,8 @@ void loop() {
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
               //Detailed info
-              strInfo = F("\nDetails:\nDevice:\t\t\t") + String(device) + STR_N + F("Warning:\t\t") + cpWarningToString() + F("\nBattery:\t\t") + cpBatteryToString() + F("\nA:\t\t\t") + cpAToString() +
-                        F("\nB:\t\t\t") + cpBToString() + F("\nC:\t\t\t") + cpCToString() + STR_N;
+              strInfo = F("\nDetails:\nDevice:\t\t\t") + String(cpDevice) + F("\nMessage:\t\t") + cpMessageToString() + F("\nWarning:\t\t") + cpWarningToString() + F("\nBattery:\t\t") + cpBatteryToString() +
+                        F("\nA:\t\t\t") + cpAToString() + F("\nB:\t\t\t") + cpBToString() + F("\nC:\t\t\t") + cpCToString() + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
 
@@ -1482,11 +1522,16 @@ void loop() {
       mqttRefreshInfo();
       isCPInfo = false;
     }
-    if (isDevice) {
+    if (isCPDevice) {
       //refresh device state
       mqttRefreshDevice();
-      isDevice = false;
-    }    
+      isCPDevice = false;
+    }
+    if (isCPMessage) {
+      //refresh message state
+      mqttRefreshMessage();
+      isCPMessage = false;
+    }      
   }
 
   // get data from rs485
@@ -1566,9 +1611,13 @@ void loop() {
                     cpUpToDate = (cpStatus == serMessage[1]) ? cpUpToDate = 1 : cpUpToDate = 2;
                     cpStatus = serMessage[1];
 
+                    //get Message
+                    isCPMessage = (cpMessage != serMessage[2]);
+                    cpMessage = serMessage[2];
+
                     //get Device
-                    isDevice = (device != serMessage[3]);
-                    device = serMessage[3];
+                    isCPDevice = (cpDevice != serMessage[3]);
+                    cpDevice = serMessage[3];
                     
                     //get info from Control Panel
                     isCPInfo = (cpInfo != serMessage[4]);
@@ -1712,7 +1761,8 @@ void loop() {
     lngLastCPUpdateTime = m;
     cpUpToDate = 0;
     isCPInfo = false;
-    isDevice = false;
+    isCPDevice = false;
+    isCPMessage = false;
   }
 
   // check reset GSM command status
