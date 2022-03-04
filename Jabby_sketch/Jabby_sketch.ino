@@ -189,23 +189,28 @@ void mqttRefreshInfo() {
   String s;
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_WARNING;
-  s = String((cpInfo & SERIAL_PK_WARNING) == SERIAL_PK_WARNING);
+  //s = String((cpInfo & SERIAL_PK_WARNING) == SERIAL_PK_WARNING);
+  s = cpWarningToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_BATTERY;
-  s = String((cpInfo & SERIAL_PK_BATTERY) == SERIAL_PK_BATTERY);
+  //s = String((cpInfo & SERIAL_PK_BATTERY) == SERIAL_PK_BATTERY);
+  s = cpBatteryToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_A;
-  s = String((cpInfo & SERIAL_PK_A) == SERIAL_PK_A);
+  //s = String((cpInfo & SERIAL_PK_A) == SERIAL_PK_A);
+  s = cpAToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_B;
-  s = String((cpInfo & SERIAL_PK_B) == SERIAL_PK_B);
+  //s = String((cpInfo & SERIAL_PK_B) == SERIAL_PK_B);
+  s = cpBToString();
   mqttClient.publish(t.c_str(), s.c_str());
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_INFO_C;
-  s = String((cpInfo & SERIAL_PK_C) == SERIAL_PK_C);
+  //s = String((cpInfo & SERIAL_PK_C) == SERIAL_PK_C);
+  s = cpCToString();
   mqttClient.publish(t.c_str(), s.c_str());  
 }
 
@@ -252,15 +257,18 @@ void mqttRefreshAlarm() {
   mqttClient.publish(t.c_str(), s.c_str());  
 
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_FIRED;
-  s = String((cpStatus & SERIAL_PK_FIRED)== SERIAL_PK_FIRED);
-
+  //s = String((cpStatus & SERIAL_PK_FIRED)== SERIAL_PK_FIRED);
+  s = cpFiredToString();
   mqttClient.publish(t.c_str(), s.c_str());  
+  
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_TRIGGERED;
-  s = String((cpStatus & SERIAL_PK_TRIGGERED) == SERIAL_PK_TRIGGERED);
-
+  //s = String((cpStatus & SERIAL_PK_TRIGGERED) == SERIAL_PK_TRIGGERED);
+  s = cpTriggeredToString();
   mqttClient.publish(t.c_str(), s.c_str());  
+  
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_DELAYED;
-  s = String((cpStatus & SERIAL_PK_DELAYED) == SERIAL_PK_DELAYED);
+  //s = String((cpStatus & SERIAL_PK_DELAYED) == SERIAL_PK_DELAYED);
+  s = cpDelayedToString();
   mqttClient.publish(t.c_str(), s.c_str());  
   
 }
@@ -568,27 +576,27 @@ String cpArmedToString() {
 }
 
 String cpUpToDateToString() {
-  return (cpUpToDate) ? STR_YES : STR_NO;
+  return (cpUpToDate) ? STR_ON : STR_OFF;
 }
 
 String cpFiredToString() {
-  return (cpStatus & SERIAL_PK_FIRED ) ? STR_YES : STR_NO;
+  return (cpStatus & SERIAL_PK_FIRED ) ? STR_ON : STR_OFF;
 }
 
 String cpTriggeredToString() {
-  return (cpStatus & SERIAL_PK_TRIGGERED) ? STR_YES : STR_NO;
+  return (cpStatus & SERIAL_PK_TRIGGERED) ? STR_ON : STR_OFF;
 }
 
 String cpDelayedToString() {
-  return (cpStatus & SERIAL_PK_DELAYED) ? STR_YES : STR_NO;
+  return (cpStatus & SERIAL_PK_DELAYED) ? STR_ON : STR_OFF;
 }
 
 String cpWarningToString() {
-  return (cpInfo & SERIAL_PK_WARNING ) ? STR_YES : STR_NO;
+  return (cpInfo & SERIAL_PK_WARNING ) ? STR_ON : STR_OFF;
 }
 
 String cpBatteryToString() {
-  return (cpInfo & SERIAL_PK_BATTERY ) ? STR_YES : STR_NO;
+  return (cpInfo & SERIAL_PK_BATTERY ) ? STR_ON : STR_OFF;
 }
 
 String cpAToString() {
