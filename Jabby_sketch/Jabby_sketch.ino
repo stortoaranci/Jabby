@@ -97,10 +97,13 @@ uint8_t serCMDType = SER_CMD_SEND_ONLY;
 //GSM
 SoftwareSerial ssGSM;
 int intGSMInput = 0;
-gsmState gsmStatus = gsmStateUnknown;
+gsmState gsmStatus = gsmStateUnk;
 long lngGSMTimeout = 0;
 long lngGSMResetTime = 0;
 uint8_t gsmRetry = GSM_RETRY;
+uint8_t gsmMessage[SERIAL_PK_LEN];
+uint8_t gsmPacketLen = 0;
+long lngLastGSMUpdateTime = 0;
 
 //Control Panel
 uint8_t cpStatus = 0xFF; //last known CP status
@@ -495,11 +498,14 @@ String mqttStateToString () {
 String gsmStatusToString (gsmState state) {
 
   switch (state) {
-    case gsmStateAcknowledgment: {
+    case gsmStateAck: {
         return STR_ACKNOWLEDGMENT;
       }
-    case gsmStateRunning: {
-        return STR_RUNNING;
+    case gsmStateRst:{
+      return STR_RESET;  
+    }
+    case gsmStateOk: {
+        return STR_OK;
       }
     default: {
         return STR_UNKNOWN;
@@ -648,9 +654,9 @@ void resetGSM() {
     ssGSM.end();
   }
   lngGSMResetTime = m;
-  pinMode(GSM_RST_PIN, OUTPUT);
+  //pinMode(GSM_RST_PIN, OUTPUT);
   digitalWrite(GSM_RST_PIN, HIGH);
-  gsmStatus=gsmStateReset;
+  gsmStatus=gsmStateRst;
 }
 
 bool loadConfig() {
@@ -896,12 +902,12 @@ String s;
 void setup() {
   pinMode(LED_PIN, OUTPUT);
   pinMode(REDE_PIN, OUTPUT);
-  //pinMode(GSM_RST_PIN, OUTPUT);
+  pinMode(GSM_RST_PIN, OUTPUT);
   pinMode(TRIGGER_PIN, OUTPUT);
 
   digitalWrite(LED_PIN, ledBlink);
   digitalWrite(REDE_PIN, LOW);
-  //digitalWrite(GSM_RST_PIN, LOW);
+  digitalWrite(GSM_RST_PIN, LOW);
   digitalWrite(LED_PIN, ledBlink);
   analogWrite(TRIGGER_PIN, TRIGGER_NONE);
   
@@ -1038,10 +1044,10 @@ void loop() {
         if (intSub) {
           createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));
         }
-        gsmStatus = gsmStateError; //no more try
+        gsmStatus = gsmStateErr; //no more try
       } else{
         //Start acknowledgment
-        gsmStatus = gsmStateAcknowledgment;
+        gsmStatus = gsmStateAck;
         lngGSMTimeout = m;
         gsmRetry = GSM_RETRY;
       }
@@ -1052,111 +1058,84 @@ void loop() {
       if (intSub) {
         createMessage (intSub, INFO_CLOSE_GSM_CONNECTION, strlen(INFO_CLOSE_GSM_CONNECTION));
       }
-      gsmStatus = gsmStateUnknown;
+      gsmStatus = gsmStateUnk;
   }
-
-#ifdef LOCAL_SERIAL
-    //Serial.println("7\n");
-#endif
   
-  if ( gsmStatus == gsmStateAcknowledgment && (m >= (lngGSMTimeout + SERIAL_MAX_INTERVAL_TIMER))){
+  if ( gsmStatus == gsmStateAck && (m >= (lngGSMTimeout + SERIAL_MAX_INTERVAL_TIMER))){
     lngGSMTimeout = m;
-#ifdef LOCAL_SERIAL
-    //Serial.println("7.1\n");
-#endif    
+
     if (!gsmRetry){
-#ifdef LOCAL_SERIAL
-    Serial.println("7.2\n");
-#endif      
+
       //reset device
       resetGSM();
     } else {
       
-#ifdef LOCAL_SERIAL
-    //Serial.println("7.3\n");
-#endif    
       //send AT
       ssGSM.write(GSM_CMD_AT, strlen(GSM_CMD_AT));
       gsmRetry--;
     }  
-#ifdef LOCAL_SERIAL
-    //Serial.println("7.4\n");
-#endif    
   }
-
-#ifdef LOCAL_SERIAL
-    //Serial.println("8\n");
-#endif
 
   // check reset GSM command status
   //if (digitalRead(GSM_RST_PIN)) {
-  if ((gsmStatus == gsmStateReset) && (m > (lngGSMResetTime + GSM_INTERVAL_TIMER))) {
+  if ((gsmStatus == gsmStateRst) && (m > (lngGSMResetTime + GSM_INTERVAL_TIMER))) {
     digitalWrite(GSM_RST_PIN, LOW);
-    pinMode(GSM_RST_PIN, INPUT);
-    gsmStatus = gsmStateUnknown;
+    //delay (15);
+    //pinMode(GSM_RST_PIN, INPUT);
+    gsmStatus = gsmStateUnk;
   }
-
-
-#ifdef LOCAL_SERIAL
-    //Serial.println("9\n");
-#endif
 
   //get output from GSM
   if (ssGSM) {  
     int intGSMInput = ssGSM.available();    
-    if (intGSMInput > 0) {     
+    if (intGSMInput > 0) {   
       uint8_t buf[intGSMInput];
       intGSMInput = ssGSM.readBytes(buf, intGSMInput);
       if (intGSMInput) { //data ok
-        //sniffing
-        if (intSub) {
-          createMessage (intSub, (char*)buf, intGSMInput);
+        lngLastGSMUpdateTime = m;
+
+        if (gsmPacketLen >= SERIAL_PK_LEN - 1) { //1 char is needed to store '\0'
+          if (intSub) {
+            createMessage (intSub, ERR_GSM_INCOMING_DATA, strlen(ERR_GSM_INCOMING_DATA));
+          }
+          gsmPacketLen = 0;
         }
-
-#ifdef LOCAL_SERIAL
-    //Serial.println("9.1\n");
-#endif
-   
         
-        switch (gsmStatus){
-          case gsmStateAcknowledgment:
+        for (int i = 0; i <= intGSMInput - 1; i++) {
+          gsmMessage[gsmPacketLen] = buf[i];
+          gsmPacketLen++;
 
-#ifdef LOCAL_SERIAL
-    //Serial.println("9.2\n");
-    Serial.println(String(intGSMInput));
-    //Serial.println(String((char)buf[0]));
-    for (int i =0; i<=intGSMInput-1;i++){
-      Serial.print(buf[i]);
-      Serial.print(" ");  
-    }
-    Serial.print("\n");
-#endif
+          //wait for the end of the packet
+          if (buf[i] == '\n'){
+            //add termination char
+            //gsmPacketLen++;
+            gsmMessage[gsmPacketLen]= '\0';
 
-            //if (!strncmp((char*)buf[intGSMInput], STR_OK,(intGSMInput > strlen(STR_OK) ? strlen(STR_OK) : intGSMInput) ) && (intGSMInput == strlen(STR_OK))) {
+            //sniffing
+            if (intSub) {
+              createMessage (intSub, (char*)gsmMessage, gsmPacketLen);
+            }
 
-#ifdef LOCAL_SERIAL
-    //Serial.println("9.3\n");
-#endif              
-              //if (intSub) {
-            //    createMessage (intSub, INFO_GSM_CONNECTION_OK, strlen(INFO_GSM_CONNECTION_OK));
-              //}
-             // gsmStatus = gsmStateRunning; //baud rate sync ok
-            //}
+            //read the incoming packet
+            switch (gsmStatus){
+              case gsmStateAck:
+                if (!strcmp( (char*)gsmMessage, STR_GSM_OK)){
+                  if (intSub) {
+                    createMessage (intSub, INFO_GSM_CONNECTION_OK, strlen(INFO_GSM_CONNECTION_OK));
+                  }
+                  gsmStatus = gsmStateOk; //baud rate sync ok
+                }//is STR_GSM_OK?
+            } //switch (gsmStatus)
+            //empty the buffer
 
-#ifdef LOCAL_SERIAL
-    //Serial.println("9.4\n");
-#endif            
-            break;
-          //default:
-            //?? 
-        } //switch (gsmStatus)
+            gsmPacketLen = 0;          
+          } // EOF \n
+        } //for i
+
       }
     }
   }
 
-#ifdef LOCAL_SERIAL
-    //Serial.println("10\n");
-#endif
 /*
 ----------------------------------------------
   RS485 SEND SEQUENCE
@@ -1613,6 +1592,13 @@ void loop() {
     }
   }
 
+
+/*
+----------------------------------------------
+  BREATHE
+----------------------------------------------
+*/
+  //yield();
 /*
 ----------------------------------------------
   MQTT MANAGEMENT
@@ -1661,7 +1647,7 @@ void loop() {
       isCPMessage = false;
     }      
   }
-
+ 
 /*
 ----------------------------------------------
   RS485 MANAGEMENT

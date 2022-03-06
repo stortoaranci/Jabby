@@ -1,4 +1,4 @@
-#define LOCAL_SERIAL
+//#define LOCAL_SERIAL
 
 #define LED_PIN D4
 #define REDE_PIN D7
@@ -69,11 +69,11 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 
 //GSM
 typedef enum {
-  gsmStateUnknown             =0,
-  gsmStateAcknowledgment      =1,
-  gsmStateReset               =2,
-  gsmStateRunning             =3,
-  gsmStateError               =4
+  gsmStateUnk      =0,
+  gsmStateAck      =1,
+  gsmStateRst      =2,
+  gsmStateOk       =3,
+  gsmStateErr      =4
 } gsmState;
 
 #define GSM_RETRY  15
@@ -125,11 +125,12 @@ const PROGMEM char* STR_ON ="on";
 const PROGMEM char* STR_OFF ="off";
 const PROGMEM char* STR_YES ="Yes";
 const PROGMEM char* STR_NO ="No";
+const PROGMEM char* STR_OK ="Ok";
 
-const PROGMEM char* STR_OK ="OK\r\n";
+const PROGMEM char* STR_GSM_OK ="OK\r\n";
 
 const PROGMEM char* STR_UNKNOWN ="Unknown";
-const PROGMEM char* STR_RUNNING ="Running";
+const PROGMEM char* STR_RESET ="Reset";
 const PROGMEM char* STR_ACKNOWLEDGMENT ="Acknowledgment";
 
 const PROGMEM char* STR_MODE_NORMAL_SPLITTED ="Normal (splitted)";
@@ -209,6 +210,7 @@ const PROGMEM char* ERR_SEQUENCE_CANCELLED ="[E117]-Sequence aborted.\n";
 const PROGMEM char* ERR_UNKNOWN_DATA ="[E118]-Unknown data.\n";
 const PROGMEM char* ERR_TRIGGER ="[E118]-Unable to trigger alarm.\n";
 const PROGMEM char* ERR_SERIAL_GSM ="[E119]-Unable to open GSM serial port.\n";
+const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in gsm incoming data.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
@@ -216,7 +218,6 @@ const PROGMEM char* INFO_LOGIN_OK ="[I2]-Welcome!\n";
 const PROGMEM char* INFO_OPEN_GSM_CONNECTION ="[I3]-Open GSM connection.\n";
 const PROGMEM char* INFO_CLOSE_GSM_CONNECTION ="[I4]-Close GSM connection.\n";
 const PROGMEM char* INFO_GSM_CONNECTION_OK ="[I5]-GSM connection OK.\n";
-
 
 //LABELS
 const PROGMEM char* LBL_MQTT_SERVER ="MQTT_SERVER";
