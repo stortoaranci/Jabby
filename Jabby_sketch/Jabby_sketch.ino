@@ -187,7 +187,11 @@ bool sendMessage(AsyncClient* client) {
   }
 }
 
-//MQTT
+/*
+----------------------------------------------
+  MQTT FUCTIONS
+----------------------------------------------
+*/
 void mqttRefreshInfo() {
 
   String t;
@@ -495,9 +499,9 @@ String mqttStateToString () {
 
 };
 
-String gsmStatusToString (gsmState state) {
+String gsmStatusToString () {
 
-  switch (state) {
+  switch (gsmStatus) {
     case gsmStateAck: {
         return STR_ACKNOWLEDGMENT;
       }
@@ -630,7 +634,11 @@ bool simulateKPTrigger(){
   return false;
 }
 
-//Instructions
+/*
+----------------------------------------------
+  INSTRUCTIONS
+----------------------------------------------
+*/
 bool triggerAlarm (uint8_t t) {
 
   switch (t) {
@@ -650,9 +658,7 @@ bool triggerAlarm (uint8_t t) {
 }
 
 void resetGSM() {
-  if (ssGSM) {
-    ssGSM.end();
-  }
+
   lngGSMResetTime = m;
   //pinMode(GSM_RST_PIN, OUTPUT);
   digitalWrite(GSM_RST_PIN, HIGH);
@@ -900,6 +906,7 @@ String s;
 }
 
 void setup() {
+  
   pinMode(LED_PIN, OUTPUT);
   pinMode(REDE_PIN, OUTPUT);
   pinMode(GSM_RST_PIN, OUTPUT);
@@ -1039,7 +1046,7 @@ void loop() {
       if (ssGSM){
         ssGSM.end();
       }
-      ssGSM.begin(57600, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false); //,256);
+      ssGSM.begin(57600, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
       if (!ssGSM){
         if (intSub) {
           createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));
@@ -1081,7 +1088,7 @@ void loop() {
   if ((gsmStatus == gsmStateRst) && (m > (lngGSMResetTime + GSM_INTERVAL_TIMER))) {
     digitalWrite(GSM_RST_PIN, LOW);
     //delay (15);
-    //pinMode(GSM_RST_PIN, INPUT);
+    //pinMode(GSM_RST_PIN, INPUT_PULLUP);
     gsmStatus = gsmStateUnk;
   }
 
@@ -1354,22 +1361,18 @@ void loop() {
                                F("\"\nTCP_PASSWORD:\t\t\"") + String(strTCPPassword) + F("\"\nTCP_PORT:\t\t\"") + String(intTCPPort) +
                                F("\"\nWIFI_SSID:\t\t\"") + String(strWiFiSSID) + F("\"\nWIFI_PASSWORD:\t\t\"") + String(strWiFiPassword) + F("\"\n");
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-
-              /*
-                                          //mqtt
-                                          strInfo = "\nMQTT:\nName:\t\t\t" + String(WiFi.hostname()) + "\nStatus\t\t\t" + String(mqttClient.connected())
-                                          + "\nCommand:\t\t" + String(r.mqttCommand) + "\nState:\t\t\t" + mqttStateToString(r.mqttState) + String ("\n");
-                                          createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-              */
+              
               //WiFi
               strInfo = F("\nWiFi:\nMAC:\t\t\t") + String(WiFi.macAddress()) + F("\nIP:\t\t\t") + WiFi.localIP().toString() + F("\nTerminals:\t\t") + String(intTerminals) + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
+
+              //MQTT
+              strInfo = F("\nMQTT:\nName:\t\t\t") + String(WiFi.hostname()) + F("\nStatus\t\t\t") + String(mqttClient.connected()) + STR_N;
+              createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
+              
               //GSM
-              /*
-                strInfo = "\nGSM:\nStatus:\t\t\t" + String(gsmStatusToString(getGSMStatus())) + "\n";
-                //strInfo = "\nGSM:\nStatus:\t\t\t" + String(getGSM()) + "\n";
-                createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-              */
+              strInfo = F("\nGSM:\nStatus:\t\t\t") + gsmStatusToString() + STR_N;
+              createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
               //Alarm Status
               strInfo = F("\nAlarm Status:\nUp-to-date:\t\t") + cpUpToDateToString() + STR_N;

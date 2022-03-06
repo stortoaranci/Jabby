@@ -6,7 +6,6 @@
 #define GSM_RST_PIN D6
 #define GSM_RX_PIN D2 //G
 #define GSM_TX_PIN D1 //Y
-#define LED_PIN D4
 
 const PROGMEM char* VERSION = "Jabby_0.1.5";
 const PROGMEM char* NAME ="Jabby";
