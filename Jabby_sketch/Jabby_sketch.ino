@@ -69,6 +69,7 @@ std::vector<TCPMessage*> outMessages;   // a list of outgoing messages from clie
 int intBroadcast = 0;                   //holds the broadcast for all the slots
 int intSub = 0;                         //holds the terminals that want to receive broadcast messages from server;
 int intSubRS485 = 0;                    //holds the terminals that want to receive RS485 packets from server;
+int intSubGSM = 0;                      //holds the terminals that want to receive GSM packets from server;
 uint8_t intTerminals = 0;               //number of connected clients
 
 //Wi-Fi
@@ -1119,8 +1120,8 @@ void loop() {
             gsmMessage[gsmPacketLen]= '\0';
 
             //sniffing
-            if (intSub) {
-              createMessage (intSub, (char*)gsmMessage, gsmPacketLen);
+            if (intSubGSM) {
+              createMessage (intSubGSM, (char*)gsmMessage, gsmPacketLen);
             }
 
             //read the incoming packet
@@ -1253,7 +1254,7 @@ void loop() {
               } else if (!strcmp(ptrParameter, "t")) {
                 blCheckValue = false;
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
-              } else if (!strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k") || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m")
+              } else if (!strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k") || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m")
                          || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "u")) {
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
               } else {
@@ -1406,7 +1407,17 @@ void loop() {
                 //enable
                 intSub += slots[inMessages[i]->terminal].terminal;
               }
-              String s = F("Subscription: ") + String(intSub & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
+              String s = STR_SUBSCRIPTION + String(intSub & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
+              createMessage (slots[inMessages[i]->terminal].terminal, s.c_str(), s.length());
+            } else if (!strcmp(slots[inMessages[i]->terminal].command, "g")) {
+              if (intSubGSM & slots[inMessages[i]->terminal].terminal) {
+                //disable
+                intSubGSM = intSubGSM & (intBroadcast - slots[inMessages[i]->terminal].terminal);
+              } else {
+                //enable
+                intSubGSM += slots[inMessages[i]->terminal].terminal;
+              }
+              String s = STR_SUBSCRIPTION + String(intSubGSM & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
               createMessage (slots[inMessages[i]->terminal].terminal, s.c_str(), s.length());
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "S")) {
               if (intSubRS485 & slots[inMessages[i]->terminal].terminal) {
@@ -1416,7 +1427,7 @@ void loop() {
                 //enable
                 intSubRS485 += slots[inMessages[i]->terminal].terminal;
               }
-              String s = F("Subscription: ") + String(intSubRS485 & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
+              String s = STR_SUBSCRIPTION + String(intSubRS485 & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
               createMessage (slots[inMessages[i]->terminal].terminal, s.c_str(), s.length());
 
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "t")) {
@@ -1595,13 +1606,6 @@ void loop() {
     }
   }
 
-
-/*
-----------------------------------------------
-  BREATHE
-----------------------------------------------
-*/
-  //yield();
 /*
 ----------------------------------------------
   MQTT MANAGEMENT
@@ -1743,8 +1747,7 @@ void loop() {
                     
                     //get info from Control Panel
                     isCPInfo = (cpInfo != serMessage[4]);
-                    cpInfo = serMessage[4];
-                    
+                    cpInfo = serMessage[4];                   
                     break;
 
                   case 0xE3: case 0xE4: case 0xE7:
@@ -1756,6 +1759,8 @@ void loop() {
                   case 0xEC: // text declaration (ie: device rename)
                     // EC 60 [device] [TEXT+\0] [CRC] FF
                     //ie: EC 60 01 74 65 73 74 31 00 76 FF (renames device #1 in "test1")
+                    // EC 87 / EC 38 Alarm Receiving Center
+                    
                     break;
                   case 0xEF:
                     break;
@@ -1764,10 +1769,14 @@ void loop() {
                   case 0xC7: case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD:
                     break;
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xE8: case 0xEA: case 0xEB: case 0xEE:
-                    break;
-                    
+                    break;                    
                   //data from Keypad
                   case 0xC6:
+                  case 0xB7: //?
+                  case 0xB8  //?
+                    break;
+                  case 0xB5: //events in memory
+                    break;               
                   case SERIAL_PK_KP_TAMPER: //0xB2 tamper keypad command
                     break;
                   case 0x8F: case 0x8E: case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: case 0x88: case 0x89:
@@ -1799,14 +1808,12 @@ void loop() {
                       serSeqLen = SERIAL_SEQ_LEN;
                     }
                     break;
-
                   case 0xA0: case 0xA5:
                     //Command Accepted/Authenticated
                     lngLastCommandSent = m;
                     if (!(busStatus & BUS_BUSY)) {
                       busStatus = BUS_FREE;
                     }
-
                     break;
                   case 0xA1: case 0xA3:
                     //Command Executed
@@ -1824,7 +1831,6 @@ void loop() {
                     }
                     busStatus = BUS_FREE;
                     break;
-
                   default:
                     //unknown packet
                     if (intSub) {
@@ -1890,5 +1896,4 @@ void loop() {
     isCPDevice = false;
     isCPMessage = false;
   }
-
 }

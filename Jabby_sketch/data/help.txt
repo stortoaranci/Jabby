@@ -1,5 +1,6 @@
 HELP:
 	e <command> <value>	Executes command
+	g			Toggles subscription to GSM traffic
 	h			Displays this message
 	i			Displays the system's info
 	k			Resets GSM

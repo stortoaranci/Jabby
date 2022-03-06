@@ -125,6 +125,7 @@ const PROGMEM char* STR_OFF ="off";
 const PROGMEM char* STR_YES ="Yes";
 const PROGMEM char* STR_NO ="No";
 const PROGMEM char* STR_OK ="Ok";
+const PROGMEM char* STR_SUBSCRIPTION ="Subscription: ";
 
 const PROGMEM char* STR_GSM_OK ="OK\r\n";
 
