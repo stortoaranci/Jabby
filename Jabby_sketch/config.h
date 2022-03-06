@@ -1,11 +1,11 @@
-//#define localSerial
+#define LOCAL_SERIAL
 
 #define LED_PIN D4
 #define REDE_PIN D7
 #define TRIGGER_PIN D5
 #define GSM_RST_PIN D6
-#define GSM_RX_PIN D2
-#define GSM_TX_PIN D1
+#define GSM_RX_PIN D2 //G
+#define GSM_TX_PIN D1 //Y
 #define LED_PIN D4
 
 const PROGMEM char* VERSION = "Jabby_0.1.5";
@@ -69,10 +69,14 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 
 //GSM
 typedef enum {
-  gsmStateNotFound            =0,
-  gsmStateEnabled             =1,
-  gsmStateDisabled            =2
+  gsmStateUnknown             =0,
+  gsmStateAcknowledgment      =1,
+  gsmStateReset               =2,
+  gsmStateRunning             =3,
+  gsmStateError               =4
 } gsmState;
+
+#define GSM_RETRY  15
 
 //timers
 #define LED_INTERVAL_TIMER            5
@@ -111,6 +115,9 @@ const PROGMEM char* SER_MSG_39 ="Entrance Delay";
 const PROGMEM char* SER_MSG_3A ="Trigger Detect";
 const PROGMEM char* SER_MSG_3F ="Active Detectors";
 
+//GSM COMMANDS
+const PROGMEM char* GSM_CMD_AT ="AT\r";
+
 //STRINGS
 const PROGMEM char* STR_0 ="\0";
 const PROGMEM char* STR_N ="\n";
@@ -119,9 +126,11 @@ const PROGMEM char* STR_OFF ="off";
 const PROGMEM char* STR_YES ="Yes";
 const PROGMEM char* STR_NO ="No";
 
-const PROGMEM char* STR_DISABLED ="Disabled";
-const PROGMEM char* STR_ENABLED ="Enabled";
-const PROGMEM char* STR_NOT_FOUND ="Not Found";
+const PROGMEM char* STR_OK ="OK\r\n";
+
+const PROGMEM char* STR_UNKNOWN ="Unknown";
+const PROGMEM char* STR_RUNNING ="Running";
+const PROGMEM char* STR_ACKNOWLEDGMENT ="Acknowledgment";
 
 const PROGMEM char* STR_MODE_NORMAL_SPLITTED ="Normal (splitted)";
 const PROGMEM char* STR_MODE_NORMAL_UNSPLITTED ="Normal (unsplitted)";
@@ -199,10 +208,15 @@ const PROGMEM char* ERR_SEQUENCE_REJECTED ="[E116]-Sequence rejected or expired.
 const PROGMEM char* ERR_SEQUENCE_CANCELLED ="[E117]-Sequence aborted.\n";
 const PROGMEM char* ERR_UNKNOWN_DATA ="[E118]-Unknown data.\n";
 const PROGMEM char* ERR_TRIGGER ="[E118]-Unable to trigger alarm.\n";
+const PROGMEM char* ERR_SERIAL_GSM ="[E119]-Unable to open GSM serial port.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
 const PROGMEM char* INFO_LOGIN_OK ="[I2]-Welcome!\n";
+const PROGMEM char* INFO_OPEN_GSM_CONNECTION ="[I3]-Open GSM connection.\n";
+const PROGMEM char* INFO_CLOSE_GSM_CONNECTION ="[I4]-Close GSM connection.\n";
+const PROGMEM char* INFO_GSM_CONNECTION_OK ="[I5]-GSM connection OK.\n";
+
 
 //LABELS
 const PROGMEM char* LBL_MQTT_SERVER ="MQTT_SERVER";
