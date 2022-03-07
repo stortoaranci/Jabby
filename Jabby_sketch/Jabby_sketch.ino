@@ -266,14 +266,14 @@ void mqttRefreshAlarm() {
   s = String(cpArmedToString());
   mqttClient.publish(t.c_str(), s.c_str());  
 
-  t = MQTT_PREFIX + WiFi.hostname() + MQTT_FIRED;
-  //s = String((cpStatus & SERIAL_PK_FIRED)== SERIAL_PK_FIRED);
-  s = cpFiredToString();
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_TRIGGERED;
+  //s = String((cpStatus & SERIAL_PK_TRIGGERED)== SERIAL_PK_TRIGGERED);
+  s = cpTriggredToString();
   mqttClient.publish(t.c_str(), s.c_str());  
   
-  t = MQTT_PREFIX + WiFi.hostname() + MQTT_TRIGGERED;
+  t = MQTT_PREFIX + WiFi.hostname() + MQTT_ACTIVATED;
   //s = String((cpStatus & SERIAL_PK_TRIGGERED) == SERIAL_PK_TRIGGERED);
-  s = cpTriggeredToString();
+  s = cpActivatedToString();
   mqttClient.publish(t.c_str(), s.c_str());  
   
   t = MQTT_PREFIX + WiFi.hostname() + MQTT_DELAYED;
@@ -478,10 +478,10 @@ static void handleNewClient(void* arg, AsyncClient* client) {
 }
 
 String mqttStateToString () {
-  if (cpStatus & SERIAL_PK_FIRED) {
+  if (cpStatus & SERIAL_PK_TRIGGERED) {
     return STR_MQTT_TRIGGERED;
   }
-  if (cpStatus & SERIAL_PK_TRIGGERED) {
+  if (cpStatus & SERIAL_PK_ACTIVATED) {
     return STR_MQTT_DISARMING;
   }
   if (cpStatus & SERIAL_PK_DELAYED) {
@@ -592,12 +592,12 @@ String cpUpToDateToString() {
   return (cpUpToDate) ? STR_ON : STR_OFF;
 }
 
-String cpFiredToString() {
-  return (cpStatus & SERIAL_PK_FIRED ) ? STR_ON : STR_OFF;
+String cpTriggredToString() {
+  return (cpStatus & SERIAL_PK_TRIGGERED ) ? STR_ON : STR_OFF;
 }
 
-String cpTriggeredToString() {
-  return (cpStatus & SERIAL_PK_TRIGGERED) ? STR_ON : STR_OFF;
+String cpActivatedToString() {
+  return (cpStatus & SERIAL_PK_ACTIVATED) ? STR_ON : STR_OFF;
 }
 
 String cpDelayedToString() {
@@ -1378,7 +1378,7 @@ void loop() {
               //Alarm Status
               strInfo = F("\nAlarm Status:\nUp-to-date:\t\t") + cpUpToDateToString() + STR_N;
               if (cpUpToDate) {
-                strInfo += F("Mode:\t\t\t") + cpModeToString() + F("\nArmed:\t\t\t") + cpArmedToString() + F("\nFired:\t\t\t") + cpFiredToString() + F("\nTriggered:\t\t") + cpTriggeredToString() +
+                strInfo += F("Mode:\t\t\t") + cpModeToString() + F("\nArmed:\t\t\t") + cpArmedToString() + F("\nTriggred:\t\t\t") + cpTriggredToString() + F("\nActivated:\t\t") + cpActivatedToString() +
                            F("\nDelayed:\t\t") + cpDelayedToString() + STR_N;
               }
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
@@ -1773,7 +1773,7 @@ void loop() {
                   //data from Keypad
                   case 0xC6:
                   case 0xB7: //?
-                  case 0xB8  //?
+                  case 0xB8:  //?
                     break;
                   case 0xB5: //events in memory
                     break;               

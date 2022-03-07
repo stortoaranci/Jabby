@@ -32,8 +32,8 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_ARMED_A                 0x01
 #define SERIAL_PK_ARMED_B                 0x02
 #define SERIAL_PK_ARMED_ABC               0x03
-#define SERIAL_PK_FIRED                   0x04
-#define SERIAL_PK_TRIGGERED               0x08
+#define SERIAL_PK_TRIGGERED               0x04
+#define SERIAL_PK_ACTIVATED               0x08
 #define SERIAL_PK_DELAYED                 0x10
 #define SERIAL_PK_MODE_MASK               0x60
 #define SERIAL_PK_MODE_SERVICE            0
@@ -170,8 +170,8 @@ const PROGMEM char* MQTT_PAYLOAD_ANNOUNCE="announce";
 
 const PROGMEM char* MQTT_MODE="/mode";
 const PROGMEM char* MQTT_ARMED="/armed";
-const PROGMEM char* MQTT_FIRED="/fired";
 const PROGMEM char* MQTT_TRIGGERED="/triggered";
+const PROGMEM char* MQTT_ACTIVATED="/activated";
 const PROGMEM char* MQTT_DELAYED="/delayed";
 
 const PROGMEM char* MQTT_DEVICE="/device";
