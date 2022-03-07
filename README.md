@@ -1,8 +1,8 @@
 # Jabby
-Home Assistant - MQTT Alarm Control Panel support for JABLOTRON OASIS JA-83K
+Home Assistant - MQTT Alarm Control Panel support for JABLOTRON OASIS JA 80 (JA-83K)
 
 ## Intro
-Jabby is a basic IoT device that allows any [JABLOTRON OASIS 80(JA-83K)](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
+Jabby is a basic IoT device that allows any [JABLOTRON OASIS 80 (JA-83K)](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
 
 It is built from inexpensive and easy to find hardware as:
 - [WeMos D1 mini](https://www.wemos.cc/en/latest/d1/d1_mini.html) 
