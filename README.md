@@ -41,6 +41,81 @@ alarm_control_panel:
 
 where **JabbyXXXXXXXXXXXX** is the name dinamically calculated as unique id of the device.
 
+### Entities
+In addition to the _MQTT Alarm Control Panel_ support, Jabby also supports other sensors with states strictly related to the system. Configuring the entities in _HA_ is possibile as regular _MQTT Sensors_. For instance:
+
+```
+#alarm-system
+  - platform: mqtt
+    name: "jabby_message"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/message"
+    qos: 0
+    icon: mdi:message-alert-outline
+
+  - platform: mqtt
+    name: "jabby_device"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/device"
+    qos: 0
+    icon: mdi:leak
+
+  - platform: mqtt
+    name: "jabby_mode"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/mode"
+    qos: 0
+    icon: mdi:shield-lock-outline
+
+  - platform: mqtt
+    name: "jabby_armed"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/armed"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_triggered"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/triggered"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_activated"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/activated"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_delayed"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/delayed"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_warning"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/warning"
+    qos: 0
+    icon: mdi:alert-outline
+
+  - platform: mqtt
+    name: "jabby_battery"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/battery"
+    qos: 0
+    icon: mdi:car-battery
+
+  - platform: mqtt
+    name: "jabby_a"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/a"
+    qos: 0
+    icon: mdi:alpha-a-circle-outline
+
+  - platform: mqtt
+    name: "jabby_b"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/b"
+    qos: 0
+    icon: mdi:alpha-b-circle-outline
+
+  - platform: mqtt
+    name: "jabby_c"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/c"
+    qos: 0
+    icon: mdi:alpha-c-circle-outline
+```
+can provide a result similar to [this](images/HomeAssistant_Triggered.jpg).
+
 ### Console
 Jabby implements a very basic console for management and test purpouse. For instance it can be used to change networking paramters avoiding to reflash the chip or used for testing the RS485 traffic generated on the bus. A complete list of commands is reported in the file [help.txt](Jabby_sketch/data/help.txt).
 
