@@ -2,7 +2,7 @@
 Home Assistant - MQTT Alarm Control Panel support for JABLOTRON OASIS JA-83K
 
 ## Intro
-Jabby is a basic IoT device that allows any [JABLOTRON OASIS JA-83K](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
+Jabby is a basic IoT device that allows any [JABLOTRON OASIS 80(JA-83K)](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
 
 It is built from inexpensive and easy to find hardware as:
 - [WeMos D1 mini](https://www.wemos.cc/en/latest/d1/d1_mini.html) 
@@ -64,7 +64,7 @@ If the device is not able to access the Wi-Fi network anymore, then an attempt o
 ### GSM support
 Jabby can be extended by connecting a SIMCOM SIM900 compatible board for future implementations. The idea is to provide remote access to Jabby. Any GPRS modem with TTL@3.3v on the RS232 can be adopted, such as old Nokia mobile phones.
 
-At the moment, nothing is implemented yet.
+At the moment, only the initial setup is implemented.
 
 ## Hardware installation
 The easy way to install the device is to use the terminal of the control panel. Power can be provided by the _Backup Power Supply clamps (+U & GND)_. We suggest to take under control the _OVERLOAD_ indicator to avoid possible issue on the main board.
@@ -73,7 +73,7 @@ RS485 signals can be reached using the _A_ and _B_ clamps. Since the standard us
 
 To avoid possible power issue, a power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
 
-By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_ or _tamper_. Actually, you can trigger the alarm simulating the tampering only by console. In any case "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed.
+By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in three different ways: _device_, _tamper_ or _keypad tampering simulation_ . If you plan to set up the first two options then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed.
 
 ## Compiling the sketch
 To compile the software some libraries are required:
@@ -89,7 +89,7 @@ To compile the software some libraries are required:
 Before flashing the program inside the ESP, copy and rename the files:
 ```
 Jabby_sketch/examples/data.json.example -> Jabby_sketch/data/data.json
-Jabby_sketch/examples/secrets.h.example -> Jabby_sketch/secrets.h
+Jabby_sketch/examples/secrets.h.example -> Jabby_sketch/secrets.h + [code]
 ```
 and customize the content of each file to fit your environment.
 
@@ -101,11 +101,12 @@ The content of the **Jabby_sketch/data** is intented to be copied inside the ESP
 Finally flash the program and setup a suitable Wi-Fi connection. Now you are ready to play.
 
 ## Arming & disarming
-At the moment Jabby sends the following commands to the bus to arm the system:
-- `*1` to arm in ABC configuration
-- `*2` to arm in A configuration
-- `*3` to arm in B configuration
+At the moment Jabby sends the following arming commands to the bus to arm the system:
+- `*1 + [code]` to arm in ABC configuration
+- `*2 + [code]` to arm in A configuration
+- `*3 + [code]` to arm in B configuration
 
+the code is sent only if requested by the system according to the variable **SET_WO_ACCESS_CODE**. In that case the code **ACCESS_CODE** has to be suitable for the selected mode.
 **A** and **B** configurations are avaiable only if the system is configured in _splitted mode_.
 
 To disarm the system Jabby uses the code provided in the variable **ACCESS_CODE**. In order to disarm the system the code have to be a valid code for the specific arming level. _Master Code_ and _Service Code_ are not necessary and you should avoid using them in your configuration for security reasons. 
