@@ -109,6 +109,7 @@ const PROGMEM char* SER_MSG_11 ="Battery Fault (1)";
 const PROGMEM char* SER_MSG_14 ="Battery Fault (2)";
 const PROGMEM char* SER_MSG_33 ="Serivce Mode";
 const PROGMEM char* SER_MSG_34 ="Maintenance Mode";
+const PROGMEM char* SER_MSG_36 ="Invalid code-exc";
 const PROGMEM char* SER_MSG_38 ="Exit Delay";
 const PROGMEM char* SER_MSG_39 ="Entrance Delay";
 const PROGMEM char* SER_MSG_3A ="Trigger Detect";

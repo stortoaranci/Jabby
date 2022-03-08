@@ -534,6 +534,8 @@ String cpMessageToString(){
       return SER_MSG_33;
     case 0x34:
       return SER_MSG_34;
+    case 0x36:
+      return SER_MSG_36;
     case 0x38:
       return SER_MSG_38;
     case 0x39:
@@ -1750,7 +1752,7 @@ void loop() {
                     cpInfo = serMessage[4];                   
                     break;
 
-                  case 0xE3: case 0xE4: case 0xE7:
+                  case 0xE3: case 0xE4: case 0xE7: //configuration?
                     break;
                   case 0xE5:
                     break;
@@ -1758,9 +1760,10 @@ void loop() {
                     break;
                   case 0xEC: // text declaration (ie: device rename)
                     // EC 60 [device] [TEXT+\0] [CRC] FF
-                    //ie: EC 60 01 74 65 73 74 31 00 76 FF (renames device #1 in "test1")
-                    // EC 87 / EC 38 Alarm Receiving Center
-                    
+                    //      ie: EC 60 01 74 65 73 74 31 00 76 FF (renames device #1 in "test1")
+                    // EC 78 03 02 00 -> GSM Communicator
+					          // EC 78 03 02 02 -> ARC Alarm
+					          // EC 38 -> Reply
                     break;
                   case 0xEF:
                     break;
@@ -1769,11 +1772,11 @@ void loop() {
                   case 0xC7: case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD:
                     break;
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xE8: case 0xEA: case 0xEB: case 0xEE:
-                    break;                    
-                  //data from Keypad
-                  case 0xC6:
+                    break;                                     
+                  case 0xC6: //Pong from Keypad
+				  case 0xB0: //?
                   case 0xB7: //?
-                  case 0xB8:  //?
+                  case 0xB8: //?
                     break;
                   case 0xB5: //events in memory
                     break;               
