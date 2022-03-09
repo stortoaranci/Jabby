@@ -170,22 +170,18 @@ bool createMessage (int terminal, const char* data, size_t len ) {
 bool addDataToMessage(AsyncClient* client, const char* data, size_t len ) {
   if (client->space() > len) {
     client->add(data, len);
-    //client->send();
     return true;
-  }  else {
-    return false;
   }
+  return false;
+  
 }
 
 bool sendMessage(AsyncClient* client) {
-  //if (client == nullptr){ return false;}
   if (client->canSend()) {
-    //client->add(data, len);
     client->send();
     return true;
-  }  else {
-    return false;
   }
+  return false;
 }
 
 /*
@@ -635,6 +631,52 @@ bool simulateKPTrigger(){
     return true;
   }
   return false;
+}
+
+/*
+----------------------------------------------
+  CRC
+----------------------------------------------
+*/
+int calculateCRC (const uint8_t* message, size_t len ) {
+  if (len>2) {
+    int magicNumber = 0x7F;
+    const uint8_t *p = message;
+    for (int j = 0; j < len; j++) {
+      int c = *(p + j);
+      for (int k = 8; k > 0; k--) {
+        magicNumber += magicNumber;
+        if (c & SERIAL_PK_BEGIN_MASK) {
+          magicNumber += 1;
+        }
+        if (magicNumber & SERIAL_PK_BEGIN_MASK) {
+          magicNumber ^= CRC_POLY;
+        }
+        c += c;
+      } // for k
+    } // for i
+    return magicNumber;
+  }
+  return 0;
+}
+
+void setCRC(uint8_t* message, size_t len){
+  if (len>2){
+    int magicNumber = calculateCRC(message,len-2);
+    uint8_t *p = message;
+    int c = CRC_POLY;
+    for (int k = 8; k > 0; k--) {
+      magicNumber += magicNumber;
+      if (c & SERIAL_PK_BEGIN_MASK) {
+        magicNumber += 1;
+      }
+      if (magicNumber & SERIAL_PK_BEGIN_MASK) {
+        magicNumber ^= CRC_POLY;
+      }
+      c += c;
+    } // for k
+    *(p + len -1) = magicNumber;
+  }
 }
 
 /*
@@ -1707,25 +1749,9 @@ void loop() {
               } //intSubRS485
 
               //calculate CRC
-              if (serPacketLen > 2) {
-                int magicNumber = 0x7F;
-                for (int j = 0; j < serPacketLen - 1; j++) {
-                  int c = serMessage[j];
-                  for (int k = 8; k > 0; k--) {
-                    magicNumber += magicNumber;
-                    if (c & 0x80) {
-                      magicNumber += 1;
-                    }
-                    if (magicNumber & SERIAL_PK_BEGIN_MASK) {
-                      magicNumber ^= 0xA3;
-                    }
-                    c += c;
-                  } // for k
-                } // for i
-                crcResult = !magicNumber;
-              } else {
-                crcResult = true;
-              }
+
+              crcResult = !calculateCRC((uint8_t *)serMessage, serPacketLen -1);
+
 
               //decode packet
               if (crcResult) {
@@ -1771,7 +1797,16 @@ void loop() {
                     break;
                   case 0xC7: case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD:
                     break;
-                  case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xE8: case 0xEA: case 0xEB: case 0xEE:
+                  case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xEA: case 0xEB: case 0xEE:
+                    break;
+                  case 0xE8: //Status Change
+                    switch (serMessage[1]){
+                      // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
+                      case 0x0D:
+                        //broadcast gsm
+                        
+                      break;
+                    }
                     break;                                     
                   case 0xC6: //Pong from Keypad
 				  case 0xB0: //?

@@ -48,12 +48,15 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_A                       8
 #define SERIAL_PK_WARNING                 0x30
 
-//tampering
-#define SERIAL_PK_KP_TAMPER               0xB2
-
-#define SERIAL_SEQ_LEN 16
+//Serial Outgoing traffic
+#define SERIAL_MSG_LEN 16   //max message len
+#define SERIAL_SEQ_LEN 16   //max sequence len
 #define SERIAL_SEQ_EOF 0xFF
 
+const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, 0xFF};
+
+//CRC
+#define CRC_POLY 0xA3
 
 //BUS
 #define BUS_FREE              0
@@ -61,10 +64,13 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define BUS_WAITING_ACK       2
 #define BUS_BUSY              4
 
-
 //COMMANDS
 #define SER_CMD_SEND_ONLY         0     //waits for 0xA0
 #define SER_CMD_SEND_RECEIVE      1     //waits for 0xA1
+
+//tampering
+#define SERIAL_PK_KP_TAMPER               0xB2
+
 
 //GSM
 typedef enum {
@@ -87,7 +93,6 @@ typedef enum {
 #define MQTT_RECONNECT_TIMER          10000
 #define MQTT_LOOP_TIMER               1000
 #define MQTT_PUBLISH_TIMER            60000
-//#define WAIT_VERY_LONG 900000
 
 //TRIGGER
 #define TRIGGER_NONE    55
