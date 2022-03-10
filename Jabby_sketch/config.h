@@ -23,7 +23,8 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SET_WO_ACCESS_CODE 1
 
 //SERIAL
-#define SERIAL_PK_LEN 24
+#define MAX_SERIAL_PK_LEN     24
+#define MAX_SER_MESSAGES      3
 
 //byte [1]
 #define SERIAL_PK_BEGIN_MASK              0x80
@@ -49,27 +50,28 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_WARNING                 0x30
 
 //Serial Outgoing traffic
-#define SERIAL_MSG_LEN 16   //max message len
-#define SERIAL_SEQ_LEN 16   //max sequence len
+#define MAX_SERIAL_MSG_LEN 16   //max message len
+#define MAX_SERIAL_SEQ_LEN 16   //max sequence len
 #define SERIAL_SEQ_EOF 0xFF
 
-const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, 0xFF};
+//const PROGMEM uint8_t SER_MSG_TAMPER_KEYPAD[] = {0xB2, SERIAL_PK_END};
+const PROGMEM uint8_t SER_MSG_GSM[] = {0xB7, SERIAL_PK_END, 0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
+//const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
 
 //CRC
 #define CRC_POLY 0xA3
 
 //BUS
 #define BUS_FREE              0
-#define BUS_IGNORE_ACK        1
+//#define BUS_IGNORE_ACK        1
 #define BUS_WAITING_ACK       2
 #define BUS_BUSY              4
 
-//COMMANDS
-#define SER_CMD_SEND_ONLY         0     //waits for 0xA0
-#define SER_CMD_SEND_RECEIVE      1     //waits for 0xA1
-
-//tampering
-#define SERIAL_PK_KP_TAMPER               0xB2
+//SERIAL COMMANDS
+typedef enum {
+  serMessageStream       =0,
+  serMessageCommand      =1
+} serMessageType;
 
 
 //GSM
@@ -85,6 +87,7 @@ typedef enum {
 
 //timers
 #define LED_INTERVAL_TIMER            5
+#define SERIAL_INTERVAL_TIMER         10
 #define SERIAL_MAX_INTERVAL_TIMER     500
 #define GSM_INTERVAL_TIMER            230
 #define CP_MAX_INTERVAL_TIMER         1000
@@ -207,7 +210,7 @@ const PROGMEM char* ERR_SAVE_CONFIG ="[E108]-Unable to save config file.\n";
 const PROGMEM char* ERR_VALUE_TOO_LARGE ="[E109]-Value too large.\n";
 const PROGMEM char* ERR_WRONG_VALUE ="[E110]-Wrong value.\n";
 const PROGMEM char* ERR_GSM_INIT ="[E111]-Unable to init GSM.\n";
-const PROGMEM char* ERR_DEVICE_BUSY ="[E112]-Unable to execute command. The device is busy.\n";
+//const PROGMEM char* ERR_DEVICE_BUSY ="[E112]-Unable to execute command. The device is busy.\n";
 const PROGMEM char* ERR_AUTH ="[E113]-Access Denied.\n";
 const PROGMEM char* ERR_CHECK_UPDATE ="[E114]-Unable to update.\n";
 const PROGMEM char* ERR_INCOMING_DATA ="[E115]-Error in serial incoming data.\n";
