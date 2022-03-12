@@ -164,7 +164,7 @@ To compile the software some libraries are required:
 Before flashing the program inside the ESP, copy and rename the files:
 ```
 Jabby_sketch/examples/data.json.example -> Jabby_sketch/data/data.json
-Jabby_sketch/examples/secrets.h.example -> Jabby_sketch/secrets.h + [code]
+Jabby_sketch/examples/secrets.h.example -> Jabby_sketch/secrets.h
 ```
 and customize the content of each file to fit your environment.
 
