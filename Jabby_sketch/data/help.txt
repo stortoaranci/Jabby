@@ -1,4 +1,5 @@
 HELP:
+	b			Bumps the serial connection
 	e <command> <value>	Executes command
 	g			Toggles subscription to GSM traffic
 	h			Displays this message

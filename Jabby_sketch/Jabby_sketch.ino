@@ -41,7 +41,6 @@ struct TCPMessage {
 };
 
 struct TCPSlot {
-
   byte terminal = 0;
   bool authenticated = false;
   byte authAttempts = MAX_TCP_AUTH_ATTEMPTS;
@@ -85,7 +84,6 @@ int intSerialInput = 0;
 uint8_t busStatus = 0;
 long lngLastCommandSent = 0;
 
-
 struct serMessage {
   uint8_t data[MAX_SERIAL_MSG_LEN];
   serMessageType type = serMessageCommand;
@@ -113,16 +111,17 @@ uint8_t gsmPacketLen = 0;
 long lngLastGSMUpdateTime = 0;
 
 //Control Panel
-uint8_t cpStatus = 0xFF; //last known CP status
-uint8_t cpUpToDate = 0;  // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
-uint8_t cpInfo =   0xFF; //last known CP info
+uint8_t cpStatus =    0xFF;   //last known CP status
+uint8_t cpUpToDate =  0;      // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
+uint8_t cpInfo =      0xFF;   //last known CP info
 bool isCPInfo = false;
-uint8_t cpDevice =   0xFF; //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
+uint8_t cpDevice =    0xFF;   //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
 bool isCPDevice = false;
-uint8_t cpMessage =   0xFF; //last displayed
+uint8_t cpMessage =   0xFF;   //last displayed message
 bool isCPMessage = false;
+uint8_t cpLastEvent = 0xFF;   //last collected event
 
-long lngLastCPUpdateTime = 0;   //last update time
+long lngLastCPUpdateTime = 0; //last update time
 
 bool setStringVariable(int terminal, char* variable, const char* value, size_t size, charRestriction r) {
   size_t l = strlen(value) + 1;
@@ -381,6 +380,8 @@ static void handleDisconnect(void* arg, AsyncClient* client) {
       strcpy(slots[i].value, "");
       intTerminals--;
       intSub = intSub & (intBroadcast - slots[i].terminal);
+      intSubRS485 = intSubRS485 & (intBroadcast - slots[i].terminal);
+      intSubGSM = intSubGSM & (intBroadcast - slots[i].terminal);
       break;
     }
   }
@@ -626,7 +627,7 @@ String cpCToString() {
 
 void simulateKPTrigger() {
   //uint8_t* p=pgm_read_byte_near(SER_MSG_TAMPER_KEYPAD);
-  uint8_t s[2]={0xB2,0xFF};
+  uint8_t s[2] = {0xB2, 0xFF};
   //uint8_t s[2];
   //memcpy_P(s,SER_MSG_TAMPER_KEYPAD,2);
   //createStream((uint8_t *)pgm_read_byte(SER_MSG_TAMPER_KEYPAD), 2);
@@ -640,10 +641,10 @@ bool createStream(const uint8_t* data, size_t len) {
   while (sizeData) {
     serMessages.push_back (new serMessage);
     serMessages.back()->type = serMessageStream;
-    
+
     if (sizeData > MAX_SERIAL_MSG_LEN) { //send messages in chunk
       memcpy(serMessages.back()->data, ptrData, MAX_SERIAL_MSG_LEN);
-  
+
       serMessages.back()->length = MAX_SERIAL_MSG_LEN;
       ptrData += MAX_SERIAL_MSG_LEN;
       sizeData -= MAX_SERIAL_MSG_LEN;
@@ -702,7 +703,7 @@ void setCRC(uint8_t* message, size_t len) {
   }
 }
 
-void emptySerialOutput(){
+void emptySerialOutput() {
   if (serMessages.size() > 0) {
     for (int i = serMessages.size() - 1; i >= 0; i--) {
       delete serMessages[i];
@@ -719,6 +720,23 @@ void emptySerialOutput(){
   INSTRUCTIONS
   ----------------------------------------------
 */
+
+void bump(){   
+  digitalWrite(REDE_PIN, HIGH);
+  
+  for (int i=0;i<1000;i++){
+    //digitalWrite(REDE_PIN, HIGH);
+    delay(3);
+    //Serial.print(0xFF);
+    //Serial.print(0xFF);
+    yield();
+    //digitalWrite(REDE_PIN, LOW);
+    //delay(3);
+  }
+    digitalWrite(REDE_PIN, LOW);
+
+}
+
 bool triggerAlarm (uint8_t t) {
 
   switch (t) {
@@ -1237,29 +1255,29 @@ void loop() {
         lngLastCommandSent = m;
         digitalWrite(REDE_PIN, HIGH);
         delay(2);
-        
-        if (serMessages[0]->type){
+
+        if (serMessages[0]->type) {
           busStatus = BUS_WAITING_ACK;
           Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
           //delay(20);
           Serial.write(SERIAL_PK_END);
-          //delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed) 
-          serMessages[0]->pointer++;  
-        } else{ 
+          //delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
+          serMessages[0]->pointer++;
+        } else {
           //busStatus = BUS_IGNORE_ACK;
-          while(serMessages[0]->pointer < serMessages[0]->length){
+          while (serMessages[0]->pointer < serMessages[0]->length) {
             Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
             serMessages[0]->pointer++;
             //delay(SERIAL_INTERVAL_TIMER);
           }//while
         }
-        delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)   
+        delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
         digitalWrite(REDE_PIN, LOW);
       } //!busStatus && !serPacketLen
     } else {
       //remove the message from the queue
-      delete serMessages[0];    
-      serMessages.erase(serMessages.begin());   
+      delete serMessages[0];
+      serMessages.erase(serMessages.begin());
       if (!serMessages.size()) {
         //free memory
         emptySerialOutput();
@@ -1355,8 +1373,9 @@ void loop() {
               } else if (!strcmp(ptrParameter, "t")) {
                 blCheckValue = false;
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
-              } else if (!strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k") || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m")
-                         || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "u")) {
+              } else if (!strcmp(ptrParameter, "b") || !strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k")
+                         || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m") || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r")
+                         || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "u")) {
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
               } else {
                 // unknown command
@@ -1449,6 +1468,8 @@ void loop() {
                   createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
                 }
               }
+            } else if (!strcmp(slots[inMessages[i]->terminal].command, "b")) {
+              bump();
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "h")) {
               loadHelp (inMessages[i]->terminal);
 
@@ -1810,7 +1831,7 @@ void loop() {
 
               //decode packet
               if (crcResult) {
-
+               
                 //check 1st byte (heading)
                 switch (serInput[0]) {
                   case 0xED: case 0xF0: //Control Panel Message
@@ -1855,16 +1876,28 @@ void loop() {
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xEA: case 0xEB: case 0xEE:
                     break;
                   case 0xE8: //Status Change
-                    switch (serInput[1]) {
-                      // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
-                      case 0x0D:
-                        //broadcast gsm
-                        uint8_t s[9];
-                        //memcpy_P(s,SER_MSG_GSM_ECHO,2);
-                        //createStream(s, 2);
-                        memcpy_P(s,SER_MSG_GSM,9);
-                        createStream(s, 9);
-                        break;
+                    if (cpLastEvent != serInput[1]) {
+                      uint8_t s[7]; // prepare a stream
+                      
+                      switch (serInput[1]) {
+                        // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
+                        case 0x0D:
+
+                          //broadcast gsm
+                          //uint8_t s[7]; // prepare a stream
+                          memcpy_P(s,SER_MSG_GSM_ECHO,2);
+                          createStream(s, 2);
+                          //memcpy_P(s, SER_MSG_GSM, 7);
+                          //createStream(s, 9);
+
+                          break;
+                        case 0x0E:
+                          //uint8_t s[2]; // prepare a stream
+                          memcpy_P(s,SER_MSG_GSM_ECHO,2);
+                          createStream(s, 2);
+                          break;  
+                      }
+                      cpLastEvent = serInput[1]; //update current event
                     }
                     break;
                   case 0xC6: //Pong from Keypad
@@ -1889,7 +1922,7 @@ void loop() {
                       }
                       //cancel any sequence
                       emptySerialOutput();
-                     
+
                     }
                     break;
                   case 0x8A:
@@ -1925,7 +1958,7 @@ void loop() {
                         createMessage (intSub, ERR_SEQUENCE_REJECTED, strlen(ERR_SEQUENCE_REJECTED));
                       }
                       //cancel sequence
-                     emptySerialOutput();
+                      emptySerialOutput();
                     }
                     busStatus = BUS_FREE;
                     break;

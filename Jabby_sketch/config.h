@@ -55,8 +55,9 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_SEQ_EOF 0xFF
 
 //const PROGMEM uint8_t SER_MSG_TAMPER_KEYPAD[] = {0xB2, SERIAL_PK_END};
-const PROGMEM uint8_t SER_MSG_GSM[] = {0xB7, SERIAL_PK_END, 0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
-//const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
+const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
+const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
+const PROGMEM uint8_t SER_MSG_GSM_ECHO_2[] = {0xB8, SERIAL_PK_END};
 
 //CRC
 #define CRC_POLY 0xA3
@@ -96,6 +97,8 @@ typedef enum {
 #define MQTT_RECONNECT_TIMER          10000
 #define MQTT_LOOP_TIMER               1000
 #define MQTT_PUBLISH_TIMER            60000
+#define BUMP_TIMER                    5000
+
 
 //TRIGGER
 #define TRIGGER_NONE    55
