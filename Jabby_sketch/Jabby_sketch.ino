@@ -1,3 +1,4 @@
+#include <WiFiClientSecure.h>
 #include <ESP8266httpUpdate.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
@@ -6,11 +7,10 @@
 #include <LittleFS.h>
 #include <ESPAsyncTCP.h>
 #include <vector>
-#include "secrets.h"
 #include "config.h"
 #include <unistd.h>
 #include <SoftwareSerial.h>
-
+#include "secrets.h"
 
 //Configuration
 char strMQTTServer[50] =  "\0"; //MQTT_SERVER;
@@ -65,7 +65,14 @@ int intSubGSM = 0;                      //holds the terminals that want to recei
 uint8_t intTerminals = 0;               //number of connected clients
 
 //Wi-Fi
+
+#ifdef SECURE_MQTT
+WiFiClientSecure espClient;
+BearSSL::X509List scCert(MQTT_CERT);
+BearSSL::PrivateKey scKey(MQTT_KEY);
+#else
 WiFiClient espClient;
+#endif
 
 //MQTT
 PubSubClient mqttClient(espClient);
@@ -191,6 +198,7 @@ bool sendMessage(AsyncClient* client) {
   MQTT FUCTIONS
   ----------------------------------------------
 */
+
 void mqttRefreshInfo() {
 
   String t;
@@ -282,17 +290,16 @@ void mqttRefreshAlarm() {
 }
 
 boolean mqttReconnect() {
-
-  if (mqttClient.connect(WiFi.hostname().c_str(), strMQTTUser, strMQTTPassword)) {
-
-    mqttClient.subscribe(strMQTTCommandTopic.c_str());
-    mqttClient.subscribe(strMQTTCommandTopicTR1.c_str());
-  }
-  if (intSub) {
-    String s = F("MQTT: Connect (\'") + WiFi.hostname() + F("\', \'") + String(strMQTTUser) + F("\', \'") +  String(strMQTTPassword) + F("\') result was ") + String(mqttClient.connected()) + STR_N;
-    createMessage(intSub, s.c_str(), s.length());
-  }
-  return mqttClient.connected();
+    if (mqttClient.connect(WiFi.hostname().c_str(), strMQTTUser, strMQTTPassword)) {
+  
+      mqttClient.subscribe(strMQTTCommandTopic.c_str());
+      mqttClient.subscribe(strMQTTCommandTopicTR1.c_str());
+    }
+    if (intSub) {
+      String s = F("MQTT: Connect (\'") + WiFi.hostname() + F("\', \'") + String(strMQTTUser) + F("\', \'") +  String(strMQTTPassword) + F("\') result was ") + String(mqttClient.connected()) + STR_N;
+      createMessage(intSub, s.c_str(), s.length());
+    }
+    return mqttClient.connected();
 }
 
 void mqttCallback(char* topic, byte* payload, unsigned int len) {
@@ -721,22 +728,6 @@ void emptySerialOutput() {
   ----------------------------------------------
 */
 
-void bump(){   
-  digitalWrite(REDE_PIN, HIGH);
-  
-  for (int i=0;i<1000;i++){
-    //digitalWrite(REDE_PIN, HIGH);
-    delay(3);
-    //Serial.print(0xFF);
-    //Serial.print(0xFF);
-    yield();
-    //digitalWrite(REDE_PIN, LOW);
-    //delay(3);
-  }
-    digitalWrite(REDE_PIN, LOW);
-
-}
-
 bool triggerAlarm (uint8_t t) {
 
   switch (t) {
@@ -793,7 +784,7 @@ bool loadConfig() {
 
   configFile.close();
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   auto error = deserializeJson(doc, buf.get());
   if (error) {
     if (intSub) {
@@ -1017,7 +1008,6 @@ void setup() {
   digitalWrite(LED_PIN, ledBlink);
   analogWrite(TRIGGER_PIN, TRIGGER_NONE);
 
-
   inMessages.reserve (MAX_TCP_MESSAGES);
   //serMessages.reserve (MAX_SER_MESSAGES);
 
@@ -1037,7 +1027,7 @@ void setup() {
   strcpy(strAccessCode, ACCESS_CODE);
 
 #ifdef LOCAL_SERIAL
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) {
     delay (SERIAL_INTERVAL_TIMER);
   }
@@ -1112,18 +1102,25 @@ void setup() {
   server->onClient(&handleNewClient, server);
   server->begin();
 
+
+#ifdef SECURE_MQTT
+  espClient.setFingerprint(MQTT_SERVER_CRT_FINGERPRINT);
+  espClient.setClientRSACert(&scCert,&scKey);
+#endif
+
   //start mqtt
   mqttClient.setServer(strMQTTServer, intMQTTPort);
   mqttClient.setCallback(mqttCallback);
 
+  strMQTTCommandTopic = MQTT_PREFIX + WiFi.hostname() + MQTT_ALARM + MQTT_COMMAND;
+  strMQTTCommandTopicTR1 = String(MQTT_PREFIX) + String(MQTT_COMMAND);
+  
   //start serial console
   Serial.begin(9600);
   while (!Serial) {
     delay (SERIAL_INTERVAL_TIMER);
   }
 
-  strMQTTCommandTopic = MQTT_PREFIX + WiFi.hostname() + MQTT_ALARM + MQTT_COMMAND;
-  strMQTTCommandTopicTR1 = String(MQTT_PREFIX) + String(MQTT_COMMAND);
 }
 
 void loop() {
@@ -1373,7 +1370,7 @@ void loop() {
               } else if (!strcmp(ptrParameter, "t")) {
                 blCheckValue = false;
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
-              } else if (!strcmp(ptrParameter, "b") || !strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k")
+              } else if (!strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k")
                          || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m") || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r")
                          || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "u")) {
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
@@ -1468,11 +1465,8 @@ void loop() {
                   createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
                 }
               }
-            } else if (!strcmp(slots[inMessages[i]->terminal].command, "b")) {
-              bump();
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "h")) {
               loadHelp (inMessages[i]->terminal);
-
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "i")) {
               //info esp
               String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGSM_ENABLE:\t\t\"") + String(intGSMEnable) +
@@ -1876,6 +1870,7 @@ void loop() {
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xEA: case 0xEB: case 0xEE:
                     break;
                   case 0xE8: //Status Change
+                    /*
                     if (cpLastEvent != serInput[1]) {
                       uint8_t s[7]; // prepare a stream
                       
@@ -1899,6 +1894,7 @@ void loop() {
                       }
                       cpLastEvent = serInput[1]; //update current event
                     }
+                    */
                     break;
                   case 0xC6: //Pong from Keypad
                   case 0xB0: //?

@@ -1,5 +1,8 @@
 //#define LOCAL_SERIAL
 
+
+#define SECURE_MQTT
+
 #define LED_PIN D4
 #define REDE_PIN D7
 #define TRIGGER_PIN D5
