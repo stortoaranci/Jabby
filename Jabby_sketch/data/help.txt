@@ -11,28 +11,32 @@ HELP:
 	s			Saves current configuration
 	S			Toggles subscription to RS485 traffic
 	t <value>		Triggers alarm (0=None; 1=Device; 2=Tamper; 3=Key Pad simulation)
-	v <variable> <value>	Sets a variable to the specified value.
+	v <variable> <value>	Sets a variable to the specified value
 	u			Checks for updates and performs the update if necessary
 
 VARIABLES:
-	ACCESS_CODE		Access code for arm/disam
-	GSM_ENABLE		Enable/Disable GSM features
-	MQTT_SERVER		MQTT server IP address or DNS name
-	MQTT_PORT		MQTT TCP port
-	MQTT_USER		MQTT user
-	MQTT_PASSWORD		MQTT password
-	OTA_WEB_SERVER		OTA web server IP address or DNS name
-	OTA_WEB_PORT		OTA TCP port
-	OTA_WEB_PAGE		OTA destination webpage (ie: "/ota.htm")
-	SET_WO_ACCESS_CODE	Set without access code
-	TCP_PASSWORD		Console password
-	TCP_PORT		Console TCP port
-	WIFI_SSID		WiFi SSID
-	WIFI_PASSWORD		WiFi password
+	AC			Access code for arm/disam
+	GE			Enable/Disable GSM features
+	GM <value>		Phone memory of 5 slots (0..4), max 20 digits, the 1st digit means the position; ie: v GM 3003933512345678 means 003933512345678 in #3
+	GPA <value>		Alert settings by phone (0=Disable; 1=Set, 2=Unset, 4=Fault, 8=Service,	16=Maintenance, 32=Technical Fault)
+				ie: v GPA 7 enables Set, Unset and Fault
+	GSA <value>		Alert settings by SMS (see GPA)
+	MS			MQTT server IP address or DNS name
+	MP			MQTT TCP port
+	MU			MQTT user
+	MPW			MQTT password
+	OWS			OTA web server IP address or DNS name
+	OWP			OTA TCP port
+	OWPG			OTA destination webpage (ie: "/ota.htm")
+	SWOAC			Set without access code
+	TPW			Console password
+	TP			Console TCP port
+	WS			WiFi SSID
+	WPW			WiFi password
 
 COMMANDS:
 	a <value>		Sets alarm (0=None; 1=ABC; 2=A; 3=C)
-	at <text>		Sends AT command to GSM.
+	at <text>		Sends AT command to GSM
 	s  <text>		Submits a key sequence
 	rw <value>		Sends raw commands to CP. Ie: e rw  143 255 128 255
 	

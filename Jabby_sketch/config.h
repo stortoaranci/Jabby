@@ -22,8 +22,13 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define MAX_TCP_AUTH_ATTEMPTS 3
 
 //default values
-#define GSM_ENABLE         1
-#define SET_WO_ACCESS_CODE 1
+#define GSM_ENABLE            1
+#define SET_WO_ACCESS_CODE    1
+#define GSM_PHONE_ALERT       0
+#define GSM_SMS_ALERT         0
+#define GSM_MEMORY_ITEMS      5
+#define GSM_PHONE_NUMBER_LEN  21
+
 
 //SERIAL
 #define MAX_SERIAL_PK_LEN     24
@@ -58,9 +63,9 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_SEQ_EOF 0xFF
 
 //const PROGMEM uint8_t SER_MSG_TAMPER_KEYPAD[] = {0xB2, SERIAL_PK_END};
-const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
-const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
-const PROGMEM uint8_t SER_MSG_GSM_ECHO_2[] = {0xB8, SERIAL_PK_END};
+//const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
+//const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
+//const PROGMEM uint8_t SER_MSG_GSM_ECHO_2[] = {0xB8, SERIAL_PK_END};
 
 //CRC
 #define CRC_POLY 0xA3
@@ -120,7 +125,7 @@ typedef enum {
 const PROGMEM char* SER_MSG_02 ="Delayed Alarm";
 const PROGMEM char* SER_MSG_05 ="Tamper Alarm";
 const PROGMEM char* SER_MSG_11 ="Battery Fault (1)";
-const PROGMEM char* SER_MSG_14 ="Battery Fault (2)";
+const PROGMEM char* SER_MSG_14 ="Accumulator Fault CP";
 const PROGMEM char* SER_MSG_33 ="Serivce Mode";
 const PROGMEM char* SER_MSG_34 ="Maintenance Mode";
 const PROGMEM char* SER_MSG_36 ="Invalid code-exc";
@@ -235,18 +240,21 @@ const PROGMEM char* INFO_CLOSE_GSM_CONNECTION ="[I4]-Close GSM connection.\n";
 const PROGMEM char* INFO_GSM_CONNECTION_OK ="[I5]-GSM connection OK.\n";
 
 //LABELS
-const PROGMEM char* LBL_MQTT_SERVER ="MQTT_SERVER";
-const PROGMEM char* LBL_MQTT_PORT ="MQTT_PORT";
-const PROGMEM char* LBL_MQTT_USER = "MQTT_USER";
-const PROGMEM char* LBL_MQTT_PASSWORD ="MQTT_PASSWORD";
-const PROGMEM char* LBL_OTA_PASSWORD ="OTA_PASSWORD";
-const PROGMEM char* LBL_OTA_WEB_SERVER ="OTA_WEB_SERVER";
-const PROGMEM char* LBL_OTA_WEB_PORT ="OTA_WEB_PORT";
-const PROGMEM char* LBL_OTA_WEB_PAGE ="OTA_WEB_PAGE";
-const PROGMEM char* LBL_TCP_PASSWORD ="TCP_PASSWORD";
-const PROGMEM char* LBL_TCP_PORT ="TCP_PORT";
-const PROGMEM char* LBL_WIFI_PASSWORD ="WIFI_PASSWORD";
-const PROGMEM char* LBL_WIFI_SSID ="WIFI_SSID";
-const PROGMEM char* LBL_GSM_ENABLE ="GSM_ENABLE";
-const PROGMEM char* LBL_ACCESS_CODE ="ACCESS_CODE";
-const PROGMEM char* LBL_SET_WO_ACCESS_CODE ="SET_WO_ACCESS_CODE";
+const PROGMEM char* LBL_MQTT_SERVER ="MS";
+const PROGMEM char* LBL_MQTT_PORT ="MP";
+const PROGMEM char* LBL_MQTT_USER = "MU";
+const PROGMEM char* LBL_MQTT_PASSWORD ="MPW";
+const PROGMEM char* LBL_OTA_PASSWORD ="OPW";
+const PROGMEM char* LBL_OTA_WEB_SERVER ="OWS";
+const PROGMEM char* LBL_OTA_WEB_PORT ="OWP";
+const PROGMEM char* LBL_OTA_WEB_PAGE ="OWPG";
+const PROGMEM char* LBL_TCP_PASSWORD ="TPW";
+const PROGMEM char* LBL_TCP_PORT ="TP";
+const PROGMEM char* LBL_WIFI_PASSWORD ="WPW";
+const PROGMEM char* LBL_WIFI_SSID ="WS";
+const PROGMEM char* LBL_GSM_ENABLE ="GE";
+const PROGMEM char* LBL_GSM_MEMORY ="GM";
+const PROGMEM char* LBL_GSM_PHONE_ALERT ="GPA";
+const PROGMEM char* LBL_GSM_SMS_ALERT ="GSA";
+const PROGMEM char* LBL_ACCESS_CODE ="AC";
+const PROGMEM char* LBL_SET_WO_ACCESS_CODE ="SWOAC";

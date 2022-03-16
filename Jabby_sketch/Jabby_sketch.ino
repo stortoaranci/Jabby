@@ -31,6 +31,9 @@ char strWiFiSSID[50] =  "\0"; //WIFI_SSID;
 char strTCPPassword[50] =  "\0"; //TCP_PASSWORD;
 int intTCPPort = TCP_PORT;
 char strAccessCode[5] = "\0"; //ACCESS_CODE
+char strGSMMemory[GSM_MEMORY_ITEMS][GSM_PHONE_NUMBER_LEN]={{}};
+uint8_t intGSMPhoneAlert =0;
+uint8_t intGSMSMSAlert =0;
 
 //TCP
 struct TCPMessage {
@@ -117,6 +120,7 @@ uint8_t gsmMessage[MAX_SERIAL_PK_LEN];
 uint8_t gsmPacketLen = 0;
 long lngLastGSMUpdateTime = 0;
 
+
 //Control Panel
 uint8_t cpStatus =    0xFF;   //last known CP status
 uint8_t cpUpToDate =  0;      // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
@@ -129,6 +133,43 @@ bool isCPMessage = false;
 uint8_t cpLastEvent = 0xFF;   //last collected event
 
 long lngLastCPUpdateTime = 0; //last update time
+
+
+bool setGSMMemory(int terminal, const char* value) {
+  int len = strlen(value);
+  const char *p =value;  
+  char pn[GSM_PHONE_NUMBER_LEN+1]="\0";
+  
+  if (!setStringVariable(terminal, pn, p,GSM_PHONE_NUMBER_LEN+1,charAllowKeypad)){
+    return false;
+  }
+
+  //get index
+  uint8_t index = 0;
+  char *ep;
+  char strIndex[2] = {value[0],'\0'};
+  long result = strtol(strIndex, &ep, 10);
+  if (result >=0 and result <GSM_MEMORY_ITEMS) {
+    //ok
+    index = (uint8_t)result;
+  } else {   
+    //invalid index
+    if (terminal >= 0) {
+      createMessage (terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
+    }
+    return false;      
+  }
+  if (len<2){
+    //clear position
+    //memcpy(strGSMMemory[index],'\0',GSM_PHONE_NUMBER_LEN);
+    strGSMMemory[index][0]='\0';
+  } else{
+    p++;
+    strcpy(strGSMMemory[index],p);   
+  }
+
+  return true;
+}
 
 bool setStringVariable(int terminal, char* variable, const char* value, size_t size, charRestriction r) {
   size_t l = strlen(value) + 1;
@@ -793,31 +834,42 @@ bool loadConfig() {
     }
     return false;
   }
-  strncpy(strMQTTServer, !doc[LBL_MQTT_SERVER].isNull() ? doc[LBL_MQTT_SERVER] : MQTT_SERVER, sizeof(strMQTTServer));
-  intMQTTPort = !doc[LBL_MQTT_PORT].isNull() ? doc[LBL_MQTT_PORT] : MQTT_PORT;
-  intGSMEnable = !doc[LBL_GSM_ENABLE].isNull() ? doc[LBL_GSM_ENABLE] : GSM_ENABLE;
-  intSetWOAccessCode = !doc[LBL_SET_WO_ACCESS_CODE].isNull() ? doc[LBL_SET_WO_ACCESS_CODE] : SET_WO_ACCESS_CODE;
-  strncpy(strMQTTUser, !doc[LBL_MQTT_USER].isNull() ? doc[LBL_MQTT_USER] : MQTT_USER , sizeof(strMQTTUser));
-  strncpy(strMQTTPassword, !doc[LBL_MQTT_PASSWORD].isNull() ? doc[LBL_MQTT_PASSWORD] : MQTT_PASSWORD, sizeof(strMQTTPassword));
+  strncpy(strMQTTServer, doc[LBL_MQTT_SERVER].isNull() ? MQTT_SERVER : doc[LBL_MQTT_SERVER] , sizeof(strMQTTServer)-1);
+  intMQTTPort = doc[LBL_MQTT_PORT].isNull() ?  MQTT_PORT : doc[LBL_MQTT_PORT];
+  intGSMEnable = doc[LBL_GSM_ENABLE].isNull() ? GSM_ENABLE : doc[LBL_GSM_ENABLE];
+  intSetWOAccessCode = doc[LBL_SET_WO_ACCESS_CODE].isNull() ? SET_WO_ACCESS_CODE : doc[LBL_SET_WO_ACCESS_CODE];
+  strncpy(strMQTTUser, doc[LBL_MQTT_USER].isNull() ? MQTT_USER : doc[LBL_MQTT_USER] , sizeof(strMQTTUser)-1);
+  strncpy(strMQTTPassword, doc[LBL_MQTT_PASSWORD].isNull() ? MQTT_PASSWORD : doc[LBL_MQTT_PASSWORD], sizeof(strMQTTPassword)-1);
   //  if (!doc[LBL_OTA_PASSWORD].isNull()) {strncpy(strOTAPassword, doc[LBL_OTA_PASSWORD], sizeof(strOTAPassword));}
-  strncpy(strOTAWebServer, !doc[LBL_OTA_WEB_SERVER].isNull() ? doc[LBL_OTA_WEB_SERVER] : OTA_WEB_SERVER, sizeof(strOTAWebServer));
-  intOTAWebPort = !doc[LBL_OTA_WEB_PORT].isNull() ? doc[LBL_OTA_WEB_PORT] : OTA_WEB_PORT;
+  strncpy(strOTAWebServer, doc[LBL_OTA_WEB_SERVER].isNull() ? OTA_WEB_SERVER : doc[LBL_OTA_WEB_SERVER], sizeof(strOTAWebServer)-1);
+  intOTAWebPort = doc[LBL_OTA_WEB_PORT].isNull() ? OTA_WEB_PORT : doc[LBL_OTA_WEB_PORT];
   //  if (!doc[LBL_OTA_WEB_PORT].isNull()) {intOTAWebPort = doc[LBL_OTA_WEB_PORT];} else {intOTAWebPort = OTA_WEB_PORT};
   //  if (!doc[LBL_OTA_WEB_USER].isNull()) {strncpy(strOTAWebUser, doc[LBL_OTA_WEB_USER], sizeof(strOTAWebUser));}
   //  if (!doc[LBL_OTA_WEB_PASSWORD].isNull()) {strncpy(strOTAWebPassword, doc[LBL_OTA_WEB_PASSWORD], sizeof(strOTAWebPassword));}
-  strncpy(strOTAWebPage, !doc[LBL_OTA_WEB_PAGE].isNull() ? doc[LBL_OTA_WEB_PAGE] : OTA_WEB_PAGE, sizeof(strOTAWebPage));
-  strncpy(strWiFiPassword, !doc[LBL_WIFI_PASSWORD].isNull() ? doc[LBL_WIFI_PASSWORD] : WIFI_PASSWORD, sizeof(strWiFiPassword));
-  strncpy(strWiFiSSID, !doc[LBL_WIFI_SSID].isNull() ? doc[LBL_WIFI_SSID] : WIFI_SSID, sizeof(strWiFiSSID));
+  strncpy(strOTAWebPage, doc[LBL_OTA_WEB_PAGE].isNull() ? OTA_WEB_PAGE : doc[LBL_OTA_WEB_PAGE], sizeof(strOTAWebPage)-1);
+  strncpy(strWiFiPassword, doc[LBL_WIFI_PASSWORD].isNull() ? WIFI_PASSWORD : doc[LBL_WIFI_PASSWORD], sizeof(strWiFiPassword)-1);
+  strncpy(strWiFiSSID, doc[LBL_WIFI_SSID].isNull() ? WIFI_SSID : doc[LBL_WIFI_SSID], sizeof(strWiFiSSID)-1);
   //  if (!doc[LBL_TCP_USER].isNull()) {strncpy(strTCPUser, doc[LBL_TCP_USER], sizeof(strTCPUser));}
-  strncpy(strTCPPassword, !doc[LBL_TCP_PASSWORD].isNull() ? doc[LBL_TCP_PASSWORD] : TCP_PASSWORD, sizeof(strTCPPassword));
-  intTCPPort = !doc[LBL_TCP_PORT].isNull() ? doc[LBL_TCP_PORT] : TCP_PORT;
-  strncpy(strAccessCode, !doc[LBL_ACCESS_CODE].isNull() ? doc[LBL_ACCESS_CODE] : ACCESS_CODE, sizeof(strAccessCode));
+  strncpy(strTCPPassword, doc[LBL_TCP_PASSWORD].isNull() ? TCP_PASSWORD : doc[LBL_TCP_PASSWORD], sizeof(strTCPPassword)-1);
+  intTCPPort = doc[LBL_TCP_PORT].isNull() ? TCP_PORT : doc[LBL_TCP_PORT];
+  strncpy(strAccessCode, doc[LBL_ACCESS_CODE].isNull() ? ACCESS_CODE : doc[LBL_ACCESS_CODE], sizeof(strAccessCode)-1);
+  memset(strGSMMemory, 0, sizeof(strGSMMemory));
+  JsonArray ja = doc[LBL_GSM_MEMORY].as<JsonArray>();
+  int i =0;
+  for (JsonArray::iterator it=ja.begin(); it!=ja.end(); ++it) {
+    if (i<GSM_MEMORY_ITEMS){
+      strncpy(strGSMMemory[i], it->as<char*>(), sizeof(strGSMMemory[i])-1);
+      i++;
+    }
+}
+  intGSMPhoneAlert = doc[LBL_GSM_PHONE_ALERT].isNull() ? GSM_PHONE_ALERT : doc[LBL_GSM_PHONE_ALERT];
+  intGSMSMSAlert = doc[LBL_GSM_SMS_ALERT].isNull() ? GSM_SMS_ALERT : doc[LBL_GSM_SMS_ALERT];
   return true;
 }
 
 bool saveConfig() {
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   doc[LBL_MQTT_SERVER] = strMQTTServer;
   doc[LBL_MQTT_PORT] = intMQTTPort;
   doc[LBL_GSM_ENABLE] = intGSMEnable;
@@ -836,6 +888,12 @@ bool saveConfig() {
   doc[LBL_TCP_PASSWORD] = strTCPPassword;
   doc[LBL_TCP_PORT] = intTCPPort;
   doc[LBL_ACCESS_CODE] = strAccessCode;
+  JsonArray gm = doc.createNestedArray(LBL_GSM_MEMORY);
+  for (int i=0;i<GSM_MEMORY_ITEMS;i++){
+    gm.add(strGSMMemory[i]);   
+  }
+  doc[LBL_GSM_PHONE_ALERT] = intGSMPhoneAlert;
+  doc[LBL_GSM_SMS_ALERT] = intGSMSMSAlert;
 
   File configFile = LittleFS.open(DATA_FILENAME, "w");
   if (!configFile) {
@@ -1389,7 +1447,9 @@ void loop() {
 
                 //check variable
                 if (!(strcmp(ptrParameter, LBL_MQTT_USER)) || !(strcmp(ptrParameter, LBL_MQTT_PASSWORD)) ||
-                    !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) || !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_SET_WO_ACCESS_CODE)) ||
+                    !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) ||
+                    !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_GSM_MEMORY)) || !(strcmp(ptrParameter, LBL_GSM_PHONE_ALERT)) || !(strcmp(ptrParameter, LBL_GSM_SMS_ALERT)) || 
+                    !(strcmp(ptrParameter, LBL_SET_WO_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_SERVER)) || !(strcmp(ptrParameter, LBL_OTA_WEB_PORT)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_PAGE)) || !(strcmp(ptrParameter, LBL_TCP_PASSWORD)) || !(strcmp(ptrParameter, LBL_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_TCP_PORT)) || !(strcmp(ptrParameter, LBL_WIFI_PASSWORD)) || !(strcmp(ptrParameter, LBL_WIFI_SSID))) {
@@ -1469,15 +1529,21 @@ void loop() {
               loadHelp (inMessages[i]->terminal);
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "i")) {
               //info esp
-              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGSM_ENABLE:\t\t\"") + String(intGSMEnable) +
-                               F("\"\nACCESS_CODE:\t\t\"") + String(strAccessCode) +
-                               F("\"\nSET_WO_ACCESS_CODE:\t\"") + String(intSetWOAccessCode) +
-                               F("\"\nMQTT_SERVER:\t\t\"") + String(strMQTTServer) + F("\"\nMQTT_PORT:\t\t\"") + String(intMQTTPort) +
-                               F("\"\nMQTT_USER:\t\t\"") + String(strMQTTUser) + F("\"\nMQTT_PASSWORD:\t\t\"") + String(strMQTTPassword) +
-                               F("\"\nOTA_WEB_SERVER:\t\t\"") + String(strOTAWebServer) + F("\"\nOTA_WEB_PORT:\t\t\"") + String(intOTAWebPort) + F("\"\nOTA_WEB_PAGE:\t\t\"") + String(strOTAWebPage) +
-                               F("\"\nTCP_PASSWORD:\t\t\"") + String(strTCPPassword) + F("\"\nTCP_PORT:\t\t\"") + String(intTCPPort) +
-                               F("\"\nWIFI_SSID:\t\t\"") + String(strWiFiSSID) + F("\"\nWIFI_PASSWORD:\t\t\"") + String(strWiFiPassword) + F("\"\n");
+              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGE:\t\t\t\"") + String(intGSMEnable) +
+                               F("\"\nGPA:\t\t\t\"") + String(intGSMPhoneAlert) + F("\"\nGSA:\t\t\t\"") + String(intGSMSMSAlert);
+
+              for (int m=0;m<GSM_MEMORY_ITEMS;m++){
+                strInfo+= F("\"\nGM[") + String(m) + F("]:\t\t\t\"") + String(strGSMMemory[m]);
+              }
+              strInfo+= F("\"\nAC:\t\t\t\"") + String(strAccessCode) +
+                        F("\"\nSWOAC:\t\t\t\"") + String(intSetWOAccessCode) +
+                        F("\"\nMS:\t\t\t\"") + String(strMQTTServer) + F("\"\nMP:\t\t\t\"") + String(intMQTTPort) +
+                        F("\"\nMU:\t\t\t\"") + String(strMQTTUser) + F("\"\nMQPW:\t\t\t\"") + String(strMQTTPassword) +
+                        F("\"\nOWS:\t\t\t\"") + String(strOTAWebServer) + F("\"\nOWP:\t\t\t\"") + String(intOTAWebPort) + F("\"\nOWPG:\t\t\t\"") + String(strOTAWebPage) +
+                        F("\"\nTPW:\t\t\t\"") + String(strTCPPassword) + F("\"\nTP:\t\t\t\"") + String(intTCPPort) +
+                        F("\"\nWS:\t\t\t\"") + String(strWiFiSSID) + F("\"\nWPW:\t\t\t\"") + String(strWiFiPassword) + F("\"\n");
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
+
 
               //WiFi
               strInfo = F("\nWiFi:\nMAC:\t\t\t") + String(WiFi.macAddress()) + F("\nIP:\t\t\t") + WiFi.localIP().toString() + F("\nTerminals:\t\t") + String(intTerminals) + STR_N;
@@ -1646,6 +1712,28 @@ void loop() {
                 } else {
                   blCheckCommand = false;
                 }
+              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_PHONE_ALERT)) {
+
+                char *p;
+                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
+                if (result >= 0 and result <= 255) {
+                  blCheckCommand = true;
+                  intGSMPhoneAlert = (int)result;
+                } else {
+                  blCheckCommand = false;
+                }
+              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_SMS_ALERT)) {
+
+                char *p;
+                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
+                if (result >= 0 and result <= 255) {
+                  blCheckCommand = true;
+                  intGSMSMSAlert = (int)result;
+                } else {
+                  blCheckCommand = false;
+                }
+              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_MEMORY)) {
+                blCheckCommand = (setGSMMemory(slots[inMessages[i]->terminal].terminal, slots[inMessages[i]->terminal].value));
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_ACCESS_CODE)) {
                 blCheckCommand = (setStringVariable(slots[inMessages[i]->terminal].terminal, strAccessCode, slots[inMessages[i]->terminal].value, sizeof(strAccessCode), charAllowDigits));
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_WIFI_PASSWORD)) {
