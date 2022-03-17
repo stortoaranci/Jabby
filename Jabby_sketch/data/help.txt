@@ -18,7 +18,7 @@ VARIABLES:
 	AC			Access code for arm/disam
 	GE			Enable/Disable GSM features
 	GM <value>		Phone memory of 5 slots (0..4), max 20 digits, the 1st digit means the position; ie: v GM 3003933512345678 means 003933512345678 in #3
-	GPA <value>		Alert settings by phone (0=Disable; 1=Set, 2=Unset, 4=Fault, 8=Service,	16=Maintenance, 32=Technical Fault)
+	GPA <value>		Alert settings by phone (0=Disable; 1=Set, 2=Unset, 4=Trigger, 8=Fault, 16=Service, 32=Maintenance, 64=Technical Fault)
 				ie: v GPA 7 enables Set, Unset and Fault
 	GSA <value>		Alert settings by SMS (see GPA)
 	MS			MQTT server IP address or DNS name

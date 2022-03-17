@@ -18,7 +18,7 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 
 #define MAX_TCP_CONNECTIONS   3
 #define MAX_TCP_MESSAGES      5
-#define MAX_TCP_MESSAGE_LEN   128
+#define MAX_TCP_MESSAGE_LEN   64
 #define MAX_TCP_AUTH_ATTEMPTS 3
 
 //default values
@@ -57,6 +57,12 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_A                       8
 #define SERIAL_PK_WARNING                 0x30
 
+//E8 byte [1]
+//#define SERIAL_PK_E8_TRIGGER_MASK        0x06 //0x02, 0x04
+
+
+
+
 //Serial Outgoing traffic
 #define MAX_SERIAL_MSG_LEN 16   //max message len
 #define MAX_SERIAL_SEQ_LEN 16   //max sequence len
@@ -84,6 +90,16 @@ typedef enum {
 
 
 //GSM
+#define GSM_RETRY                 15
+
+#define GSM_ALERT_SET             1
+#define GSM_ALERT_UNSET           2
+#define GSM_ALERT_TRIGGER         4
+#define GSM_ALERT_FAULT           8
+#define GSM_ALERT_SERVICE         16
+#define GSM_ALERT_MAINTENANCE     32
+#define GSM_ALERT_TECHNICAL_FAULT 64
+
 typedef enum {
   gsmStateUnk      =0,
   gsmStateAck      =1,
@@ -92,7 +108,11 @@ typedef enum {
   gsmStateErr      =4
 } gsmState;
 
-#define GSM_RETRY  15
+typedef enum {
+  gsmCommandSMS       =0,
+  gsmCommandCall      =1
+} gsmCommandType;
+
 
 //timers
 #define LED_INTERVAL_TIMER            5

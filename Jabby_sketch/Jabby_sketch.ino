@@ -31,9 +31,9 @@ char strWiFiSSID[50] =  "\0"; //WIFI_SSID;
 char strTCPPassword[50] =  "\0"; //TCP_PASSWORD;
 int intTCPPort = TCP_PORT;
 char strAccessCode[5] = "\0"; //ACCESS_CODE
-char strGSMMemory[GSM_MEMORY_ITEMS][GSM_PHONE_NUMBER_LEN]={{}};
-uint8_t intGSMPhoneAlert =0;
-uint8_t intGSMSMSAlert =0;
+char strGSMMemory[GSM_MEMORY_ITEMS][GSM_PHONE_NUMBER_LEN] = {{}};
+uint8_t intGSMPhoneAlert = 0;
+uint8_t intGSMSMSAlert = 0;
 
 //TCP
 struct TCPMessage {
@@ -91,8 +91,8 @@ uint8_t serInput[MAX_SERIAL_PK_LEN];
 uint8_t serInputLen = 0;
 long lngLastSerialUpdateTime = 0;
 int intSerialInput = 0;
-uint8_t busStatus = 0;
-long lngLastCommandSent = 0;
+uint8_t serialBusStatus = 0;
+long lngLastSerialCommandSent = 0;
 
 struct serMessage {
   uint8_t data[MAX_SERIAL_MSG_LEN];
@@ -119,7 +119,15 @@ uint8_t gsmRetry = GSM_RETRY;
 uint8_t gsmMessage[MAX_SERIAL_PK_LEN];
 uint8_t gsmPacketLen = 0;
 long lngLastGSMUpdateTime = 0;
+uint8_t gsmBusStatus = 0;
+long lngLastGSMCommandSent = 0;
 
+struct gsmCommand {
+  gsmCommandType type = gsmCommandSMS;
+  uint8_t id = 0;
+  uint8_t data = 0;
+};
+std::vector<gsmCommand*> gsmCommands;   //a list of outgoing commands for GSM
 
 //Control Panel
 uint8_t cpStatus =    0xFF;   //last known CP status
@@ -137,35 +145,35 @@ long lngLastCPUpdateTime = 0; //last update time
 
 bool setGSMMemory(int terminal, const char* value) {
   int len = strlen(value);
-  const char *p =value;  
-  char pn[GSM_PHONE_NUMBER_LEN+1]="\0";
-  
-  if (!setStringVariable(terminal, pn, p,GSM_PHONE_NUMBER_LEN+1,charAllowKeypad)){
+  const char *p = value;
+  char pn[GSM_PHONE_NUMBER_LEN + 1] = "\0";
+
+  if (!setStringVariable(terminal, pn, p, GSM_PHONE_NUMBER_LEN + 1, charAllowKeypad)) {
     return false;
   }
 
   //get index
   uint8_t index = 0;
   char *ep;
-  char strIndex[2] = {value[0],'\0'};
+  char strIndex[2] = {value[0], '\0'};
   long result = strtol(strIndex, &ep, 10);
-  if (result >=0 and result <GSM_MEMORY_ITEMS) {
+  if (result >= 0 and result < GSM_MEMORY_ITEMS) {
     //ok
     index = (uint8_t)result;
-  } else {   
+  } else {
     //invalid index
     if (terminal >= 0) {
       createMessage (terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
     }
-    return false;      
+    return false;
   }
-  if (len<2){
+  if (len < 2) {
     //clear position
     //memcpy(strGSMMemory[index],'\0',GSM_PHONE_NUMBER_LEN);
-    strGSMMemory[index][0]='\0';
-  } else{
+    strGSMMemory[index][0] = '\0';
+  } else {
     p++;
-    strcpy(strGSMMemory[index],p);   
+    strcpy(strGSMMemory[index], p);
   }
 
   return true;
@@ -331,16 +339,16 @@ void mqttRefreshAlarm() {
 }
 
 boolean mqttReconnect() {
-    if (mqttClient.connect(WiFi.hostname().c_str(), strMQTTUser, strMQTTPassword)) {
-  
-      mqttClient.subscribe(strMQTTCommandTopic.c_str());
-      mqttClient.subscribe(strMQTTCommandTopicTR1.c_str());
-    }
-    if (intSub) {
-      String s = F("MQTT: Connect (\'") + WiFi.hostname() + F("\', \'") + String(strMQTTUser) + F("\', \'") +  String(strMQTTPassword) + F("\') result was ") + String(mqttClient.connected()) + STR_N;
-      createMessage(intSub, s.c_str(), s.length());
-    }
-    return mqttClient.connected();
+  if (mqttClient.connect(WiFi.hostname().c_str(), strMQTTUser, strMQTTPassword)) {
+
+    mqttClient.subscribe(strMQTTCommandTopic.c_str());
+    mqttClient.subscribe(strMQTTCommandTopicTR1.c_str());
+  }
+  if (intSub) {
+    String s = F("MQTT: Connect (\'") + WiFi.hostname() + F("\', \'") + String(strMQTTUser) + F("\', \'") +  String(strMQTTPassword) + F("\') result was ") + String(mqttClient.connected()) + STR_N;
+    createMessage(intSub, s.c_str(), s.length());
+  }
+  return mqttClient.connected();
 }
 
 void mqttCallback(char* topic, byte* payload, unsigned int len) {
@@ -834,34 +842,34 @@ bool loadConfig() {
     }
     return false;
   }
-  strncpy(strMQTTServer, doc[LBL_MQTT_SERVER].isNull() ? MQTT_SERVER : doc[LBL_MQTT_SERVER] , sizeof(strMQTTServer)-1);
+  strncpy(strMQTTServer, doc[LBL_MQTT_SERVER].isNull() ? MQTT_SERVER : doc[LBL_MQTT_SERVER] , sizeof(strMQTTServer) - 1);
   intMQTTPort = doc[LBL_MQTT_PORT].isNull() ?  MQTT_PORT : doc[LBL_MQTT_PORT];
   intGSMEnable = doc[LBL_GSM_ENABLE].isNull() ? GSM_ENABLE : doc[LBL_GSM_ENABLE];
   intSetWOAccessCode = doc[LBL_SET_WO_ACCESS_CODE].isNull() ? SET_WO_ACCESS_CODE : doc[LBL_SET_WO_ACCESS_CODE];
-  strncpy(strMQTTUser, doc[LBL_MQTT_USER].isNull() ? MQTT_USER : doc[LBL_MQTT_USER] , sizeof(strMQTTUser)-1);
-  strncpy(strMQTTPassword, doc[LBL_MQTT_PASSWORD].isNull() ? MQTT_PASSWORD : doc[LBL_MQTT_PASSWORD], sizeof(strMQTTPassword)-1);
+  strncpy(strMQTTUser, doc[LBL_MQTT_USER].isNull() ? MQTT_USER : doc[LBL_MQTT_USER] , sizeof(strMQTTUser) - 1);
+  strncpy(strMQTTPassword, doc[LBL_MQTT_PASSWORD].isNull() ? MQTT_PASSWORD : doc[LBL_MQTT_PASSWORD], sizeof(strMQTTPassword) - 1);
   //  if (!doc[LBL_OTA_PASSWORD].isNull()) {strncpy(strOTAPassword, doc[LBL_OTA_PASSWORD], sizeof(strOTAPassword));}
-  strncpy(strOTAWebServer, doc[LBL_OTA_WEB_SERVER].isNull() ? OTA_WEB_SERVER : doc[LBL_OTA_WEB_SERVER], sizeof(strOTAWebServer)-1);
+  strncpy(strOTAWebServer, doc[LBL_OTA_WEB_SERVER].isNull() ? OTA_WEB_SERVER : doc[LBL_OTA_WEB_SERVER], sizeof(strOTAWebServer) - 1);
   intOTAWebPort = doc[LBL_OTA_WEB_PORT].isNull() ? OTA_WEB_PORT : doc[LBL_OTA_WEB_PORT];
   //  if (!doc[LBL_OTA_WEB_PORT].isNull()) {intOTAWebPort = doc[LBL_OTA_WEB_PORT];} else {intOTAWebPort = OTA_WEB_PORT};
   //  if (!doc[LBL_OTA_WEB_USER].isNull()) {strncpy(strOTAWebUser, doc[LBL_OTA_WEB_USER], sizeof(strOTAWebUser));}
   //  if (!doc[LBL_OTA_WEB_PASSWORD].isNull()) {strncpy(strOTAWebPassword, doc[LBL_OTA_WEB_PASSWORD], sizeof(strOTAWebPassword));}
-  strncpy(strOTAWebPage, doc[LBL_OTA_WEB_PAGE].isNull() ? OTA_WEB_PAGE : doc[LBL_OTA_WEB_PAGE], sizeof(strOTAWebPage)-1);
-  strncpy(strWiFiPassword, doc[LBL_WIFI_PASSWORD].isNull() ? WIFI_PASSWORD : doc[LBL_WIFI_PASSWORD], sizeof(strWiFiPassword)-1);
-  strncpy(strWiFiSSID, doc[LBL_WIFI_SSID].isNull() ? WIFI_SSID : doc[LBL_WIFI_SSID], sizeof(strWiFiSSID)-1);
+  strncpy(strOTAWebPage, doc[LBL_OTA_WEB_PAGE].isNull() ? OTA_WEB_PAGE : doc[LBL_OTA_WEB_PAGE], sizeof(strOTAWebPage) - 1);
+  strncpy(strWiFiPassword, doc[LBL_WIFI_PASSWORD].isNull() ? WIFI_PASSWORD : doc[LBL_WIFI_PASSWORD], sizeof(strWiFiPassword) - 1);
+  strncpy(strWiFiSSID, doc[LBL_WIFI_SSID].isNull() ? WIFI_SSID : doc[LBL_WIFI_SSID], sizeof(strWiFiSSID) - 1);
   //  if (!doc[LBL_TCP_USER].isNull()) {strncpy(strTCPUser, doc[LBL_TCP_USER], sizeof(strTCPUser));}
-  strncpy(strTCPPassword, doc[LBL_TCP_PASSWORD].isNull() ? TCP_PASSWORD : doc[LBL_TCP_PASSWORD], sizeof(strTCPPassword)-1);
+  strncpy(strTCPPassword, doc[LBL_TCP_PASSWORD].isNull() ? TCP_PASSWORD : doc[LBL_TCP_PASSWORD], sizeof(strTCPPassword) - 1);
   intTCPPort = doc[LBL_TCP_PORT].isNull() ? TCP_PORT : doc[LBL_TCP_PORT];
-  strncpy(strAccessCode, doc[LBL_ACCESS_CODE].isNull() ? ACCESS_CODE : doc[LBL_ACCESS_CODE], sizeof(strAccessCode)-1);
+  strncpy(strAccessCode, doc[LBL_ACCESS_CODE].isNull() ? ACCESS_CODE : doc[LBL_ACCESS_CODE], sizeof(strAccessCode) - 1);
   memset(strGSMMemory, 0, sizeof(strGSMMemory));
   JsonArray ja = doc[LBL_GSM_MEMORY].as<JsonArray>();
-  int i =0;
-  for (JsonArray::iterator it=ja.begin(); it!=ja.end(); ++it) {
-    if (i<GSM_MEMORY_ITEMS){
-      strncpy(strGSMMemory[i], it->as<char*>(), sizeof(strGSMMemory[i])-1);
+  int i = 0;
+  for (JsonArray::iterator it = ja.begin(); it != ja.end(); ++it) {
+    if (i < GSM_MEMORY_ITEMS) {
+      strncpy(strGSMMemory[i], it->as<char*>(), sizeof(strGSMMemory[i]) - 1);
       i++;
     }
-}
+  }
   intGSMPhoneAlert = doc[LBL_GSM_PHONE_ALERT].isNull() ? GSM_PHONE_ALERT : doc[LBL_GSM_PHONE_ALERT];
   intGSMSMSAlert = doc[LBL_GSM_SMS_ALERT].isNull() ? GSM_SMS_ALERT : doc[LBL_GSM_SMS_ALERT];
   return true;
@@ -889,8 +897,8 @@ bool saveConfig() {
   doc[LBL_TCP_PORT] = intTCPPort;
   doc[LBL_ACCESS_CODE] = strAccessCode;
   JsonArray gm = doc.createNestedArray(LBL_GSM_MEMORY);
-  for (int i=0;i<GSM_MEMORY_ITEMS;i++){
-    gm.add(strGSMMemory[i]);   
+  for (int i = 0; i < GSM_MEMORY_ITEMS; i++) {
+    gm.add(strGSMMemory[i]);
   }
   doc[LBL_GSM_PHONE_ALERT] = intGSMPhoneAlert;
   doc[LBL_GSM_SMS_ALERT] = intGSMSMSAlert;
@@ -966,13 +974,12 @@ int checkUpdate(int slot, bool reboot) {
   return result;
 }
 
-bool sendATCommand (char* command) {
+bool sendATCommand (const char* command) {
   size_t r = 0;
   if (ssGSM) {
     r = ssGSM.write(command, strlen(command));
     ssGSM.write('\r');
   }
-
   return (bool)r;
 }
 
@@ -1163,7 +1170,7 @@ void setup() {
 
 #ifdef SECURE_MQTT
   espClient.setFingerprint(MQTT_SERVER_CRT_FINGERPRINT);
-  espClient.setClientRSACert(&scCert,&scKey);
+  espClient.setClientRSACert(&scCert, &scKey);
 #endif
 
   //start mqtt
@@ -1172,7 +1179,7 @@ void setup() {
 
   strMQTTCommandTopic = MQTT_PREFIX + WiFi.hostname() + MQTT_ALARM + MQTT_COMMAND;
   strMQTTCommandTopicTR1 = String(MQTT_PREFIX) + String(MQTT_COMMAND);
-  
+
   //start serial console
   Serial.begin(9600);
   while (!Serial) {
@@ -1306,20 +1313,20 @@ void loop() {
   if (serMessages.size() > 0) {
     if (serMessages[0]->pointer < serMessages[0]->length) {
 
-      if (!busStatus && !serInputLen) {
-        lngLastCommandSent = m;
+      if (!serialBusStatus && !serInputLen) {
+        lngLastSerialCommandSent = m;
         digitalWrite(REDE_PIN, HIGH);
         delay(2);
 
         if (serMessages[0]->type) {
-          busStatus = BUS_WAITING_ACK;
+          serialBusStatus = BUS_WAITING_ACK;
           Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
           //delay(20);
           Serial.write(SERIAL_PK_END);
           //delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
           serMessages[0]->pointer++;
         } else {
-          //busStatus = BUS_IGNORE_ACK;
+          //serialBusStatus = BUS_IGNORE_ACK;
           while (serMessages[0]->pointer < serMessages[0]->length) {
             Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
             serMessages[0]->pointer++;
@@ -1328,7 +1335,7 @@ void loop() {
         }
         delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
         digitalWrite(REDE_PIN, LOW);
-      } //!busStatus && !serPacketLen
+      } //!serialBusStatus && !serPacketLen
     } else {
       //remove the message from the queue
       delete serMessages[0];
@@ -1448,7 +1455,7 @@ void loop() {
                 //check variable
                 if (!(strcmp(ptrParameter, LBL_MQTT_USER)) || !(strcmp(ptrParameter, LBL_MQTT_PASSWORD)) ||
                     !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) ||
-                    !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_GSM_MEMORY)) || !(strcmp(ptrParameter, LBL_GSM_PHONE_ALERT)) || !(strcmp(ptrParameter, LBL_GSM_SMS_ALERT)) || 
+                    !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_GSM_MEMORY)) || !(strcmp(ptrParameter, LBL_GSM_PHONE_ALERT)) || !(strcmp(ptrParameter, LBL_GSM_SMS_ALERT)) ||
                     !(strcmp(ptrParameter, LBL_SET_WO_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_SERVER)) || !(strcmp(ptrParameter, LBL_OTA_WEB_PORT)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_PAGE)) || !(strcmp(ptrParameter, LBL_TCP_PASSWORD)) || !(strcmp(ptrParameter, LBL_ACCESS_CODE)) ||
@@ -1532,16 +1539,16 @@ void loop() {
               String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGE:\t\t\t\"") + String(intGSMEnable) +
                                F("\"\nGPA:\t\t\t\"") + String(intGSMPhoneAlert) + F("\"\nGSA:\t\t\t\"") + String(intGSMSMSAlert);
 
-              for (int m=0;m<GSM_MEMORY_ITEMS;m++){
-                strInfo+= F("\"\nGM[") + String(m) + F("]:\t\t\t\"") + String(strGSMMemory[m]);
+              for (int m = 0; m < GSM_MEMORY_ITEMS; m++) {
+                strInfo += F("\"\nGM[") + String(m) + F("]:\t\t\t\"") + String(strGSMMemory[m]);
               }
-              strInfo+= F("\"\nAC:\t\t\t\"") + String(strAccessCode) +
-                        F("\"\nSWOAC:\t\t\t\"") + String(intSetWOAccessCode) +
-                        F("\"\nMS:\t\t\t\"") + String(strMQTTServer) + F("\"\nMP:\t\t\t\"") + String(intMQTTPort) +
-                        F("\"\nMU:\t\t\t\"") + String(strMQTTUser) + F("\"\nMQPW:\t\t\t\"") + String(strMQTTPassword) +
-                        F("\"\nOWS:\t\t\t\"") + String(strOTAWebServer) + F("\"\nOWP:\t\t\t\"") + String(intOTAWebPort) + F("\"\nOWPG:\t\t\t\"") + String(strOTAWebPage) +
-                        F("\"\nTPW:\t\t\t\"") + String(strTCPPassword) + F("\"\nTP:\t\t\t\"") + String(intTCPPort) +
-                        F("\"\nWS:\t\t\t\"") + String(strWiFiSSID) + F("\"\nWPW:\t\t\t\"") + String(strWiFiPassword) + F("\"\n");
+              strInfo += F("\"\nAC:\t\t\t\"") + String(strAccessCode) +
+                         F("\"\nSWOAC:\t\t\t\"") + String(intSetWOAccessCode) +
+                         F("\"\nMS:\t\t\t\"") + String(strMQTTServer) + F("\"\nMP:\t\t\t\"") + String(intMQTTPort) +
+                         F("\"\nMU:\t\t\t\"") + String(strMQTTUser) + F("\"\nMQPW:\t\t\t\"") + String(strMQTTPassword) +
+                         F("\"\nOWS:\t\t\t\"") + String(strOTAWebServer) + F("\"\nOWP:\t\t\t\"") + String(intOTAWebPort) + F("\"\nOWPG:\t\t\t\"") + String(strOTAWebPage) +
+                         F("\"\nTPW:\t\t\t\"") + String(strTCPPassword) + F("\"\nTP:\t\t\t\"") + String(intTCPPort) +
+                         F("\"\nWS:\t\t\t\"") + String(strWiFiSSID) + F("\"\nWPW:\t\t\t\"") + String(strWiFiPassword) + F("\"\n");
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
 
@@ -1913,7 +1920,7 @@ void loop() {
 
               //decode packet
               if (crcResult) {
-               
+
                 //check 1st byte (heading)
                 switch (serInput[0]) {
                   case 0xED: case 0xF0: //Control Panel Message
@@ -1958,10 +1965,56 @@ void loop() {
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xEA: case 0xEB: case 0xEE:
                     break;
                   case 0xE8: //Status Change
-                    /*
-                    if (cpLastEvent != serInput[1]) {
-                      uint8_t s[7]; // prepare a stream
+                    if ( (cpLastEvent != serInput[1]) && intGSMEnable ){
                       
+                      uint8_t data=0;
+                      switch (serInput[1]) {
+                        // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
+                        case 0x02: case 0x04:
+                          //trigger
+                          data = GSM_ALERT_TRIGGER;
+                      }
+
+                      bool sendSMS = (intGSMSMSAlert & data);
+                      bool makeCall = (intGSMSMSAlert & data);
+      if (intSub) {
+        createMessage (intSub, "1\n", strlen("1\n"));
+      }
+                      if (sendSMS) {
+                        //send sms
+if (intSub) {
+        createMessage (intSub, "2\n", strlen("1\n"));
+      }                        
+                        for (uint8_t i=0; i<GSM_MEMORY_ITEMS; i++){
+                          if (!strlen(strGSMMemory[i])){
+                            gsmCommands.push_back (new gsmCommand);
+                            gsmCommands.back()->type = gsmCommandSMS;
+                            gsmCommands.back()->id = i;
+                            gsmCommands.back()->data = data;
+if (intSub) {
+        createMessage (intSub, "3\n", strlen("1\n"));
+      }                            
+                          }
+                        }
+                      }
+                      
+                      if (makeCall) {
+                        //call phone numbers
+                        for (uint8_t i=0; i<GSM_MEMORY_ITEMS; i++){
+                          if (!strlen(strGSMMemory[i])){
+                            gsmCommands.push_back (new gsmCommand);
+                            gsmCommands.back()->type = gsmCommandCall;
+                            gsmCommands.back()->id = i;
+                            gsmCommands.back()->id = data;
+                          }
+                        }
+                      }
+                      cpLastEvent = serInput[1]; //update current event
+                    }
+                    /*
+                      if (cpLastEvent != serInput[1]) {
+                      uint8_t s[7]; // prepare a stream
+
                       switch (serInput[1]) {
                         // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
                         case 0x0D:
@@ -1978,10 +2031,10 @@ void loop() {
                           //uint8_t s[2]; // prepare a stream
                           memcpy_P(s,SER_MSG_GSM_ECHO,2);
                           createStream(s, 2);
-                          break;  
+                          break;
                       }
                       cpLastEvent = serInput[1]; //update current event
-                    }
+                      }
                     */
                     break;
                   case 0xC6: //Pong from Keypad
@@ -1996,10 +2049,10 @@ void loop() {
                   case 0x8F: case 0x8E: case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87: case 0x88: case 0x89:
                     //Keypad *,#, 0-9
 
-                    lngLastCommandSent = m;
-                    busStatus = busStatus | BUS_BUSY;
+                    lngLastSerialCommandSent = m;
+                    serialBusStatus = serialBusStatus | BUS_BUSY;
                     // if wait response then cancel sequence
-                    if (busStatus & BUS_WAITING_ACK) {
+                    if (serialBusStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
@@ -2011,10 +2064,10 @@ void loop() {
                     break;
                   case 0x8A:
                     //Control Panel Settings
-                    lngLastCommandSent = m;
-                    busStatus = busStatus | BUS_BUSY;
+                    lngLastSerialCommandSent = m;
+                    serialBusStatus = serialBusStatus | BUS_BUSY;
                     // if wait response then cancel sequence
-                    if (busStatus & BUS_WAITING_ACK) {
+                    if (serialBusStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
@@ -2025,18 +2078,18 @@ void loop() {
                     break;
                   case 0xA0: case 0xA5:
                     //Command Accepted/Authenticated
-                    lngLastCommandSent = m;
-                    if (!(busStatus & BUS_BUSY)) {
-                      busStatus = BUS_FREE;
+                    lngLastSerialCommandSent = m;
+                    if (!(serialBusStatus & BUS_BUSY)) {
+                      serialBusStatus = BUS_FREE;
                     }
                     break;
                   case 0xA1: case 0xA3:
                     //Command Executed
-                    busStatus = BUS_FREE;
+                    serialBusStatus = BUS_FREE;
                     break;
                   case 0xA4:
                     //Command Expired/Cancelled/Forbidden
-                    if (busStatus & BUS_WAITING_ACK) {
+                    if (serialBusStatus & BUS_WAITING_ACK) {
                       //error
                       if (intSub) {
                         createMessage (intSub, ERR_SEQUENCE_REJECTED, strlen(ERR_SEQUENCE_REJECTED));
@@ -2044,7 +2097,7 @@ void loop() {
                       //cancel sequence
                       emptySerialOutput();
                     }
-                    busStatus = BUS_FREE;
+                    serialBusStatus = BUS_FREE;
                     break;
                   default:
                     //unknown packet
@@ -2071,6 +2124,43 @@ void loop() {
 
   } //intSerialInput > 0
 
+  /*
+    ----------------------------------------------
+    GSM SEND COMMAND
+    ----------------------------------------------
+  */
+  if (gsmCommands.size() > 0) {
+
+    if (!gsmBusStatus && !gsmPacketLen) {
+      lngLastGSMCommandSent = m;
+      
+      if (gsmCommands[0]->type) {
+        //call
+/*
+        serialBusStatus = BUS_WAITING_ACK;
+        Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
+        //delay(20);
+        Serial.write(SERIAL_PK_END);
+        //delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
+        serMessages[0]->pointer++;
+*/        
+      } else {
+        //sms
+        String sms = F("AT+CMGS=\"") + String(strGSMMemory[gsmCommands[0]->id]) + F("\"\n"); // + String(SER_MSG_05);
+        switch (gsmCommands[0]->data){
+          case GSM_ALERT_TRIGGER:
+            sms+=String(SER_MSG_05);
+        }
+        sendATCommand(sms.c_str());
+        gsmBusStatus=BUS_BUSY;
+      }
+      delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
+      digitalWrite(REDE_PIN, LOW);
+    } //!serialBusStatus && !serPacketLen
+
+  } //serMessages.size() > 0
+
+
 
   /*
     ----------------------------------------------
@@ -2082,17 +2172,17 @@ void loop() {
     digitalWrite(LED_PIN, ledBlink);
   }
 
-  if (busStatus && (m >= (lngLastCommandSent + BUS_MAX_INTERVAL_TIMER))) {
+  if (serialBusStatus && (m >= (lngLastSerialCommandSent + BUS_MAX_INTERVAL_TIMER))) {
     //command expiration
-    //if ((busStatus & BUS_WAITING_ACK) || (busStatus & BUS_IGNORE_ACK)) {
-    if (busStatus & BUS_WAITING_ACK) {
+    //if ((serialBusStatus & BUS_WAITING_ACK) || (serialBusStatus & BUS_IGNORE_ACK)) {
+    if (serialBusStatus & BUS_WAITING_ACK) {
       //***serSeqLen = SERIAL_SEQ_LEN;
       if (intSub) {
         createMessage (intSub, ERR_SEQUENCE_CANCELLED, strlen(ERR_SEQUENCE_CANCELLED));
       }
       emptySerialOutput();
     }
-    busStatus = BUS_FREE;
+    serialBusStatus = BUS_FREE;
   }
 
   if (m >= (lngLastSerialUpdateTime + SERIAL_MAX_INTERVAL_TIMER)) {
