@@ -80,7 +80,8 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define BUS_FREE              0
 //#define BUS_IGNORE_ACK        1
 #define BUS_WAITING_ACK       2
-#define BUS_BUSY              4
+#define BUS_WAITING_PROMPT    4
+#define BUS_BUSY              8
 
 //SERIAL COMMANDS
 typedef enum {
@@ -90,6 +91,7 @@ typedef enum {
 
 
 //GSM
+#define MAX_GSM_PK_LEN            64
 #define GSM_RETRY                 15
 
 #define GSM_ALERT_SET             1
@@ -109,9 +111,10 @@ typedef enum {
 } gsmState;
 
 typedef enum {
-  gsmCommandSMS       =0,
-  gsmCommandCall      =1
-} gsmCommandType;
+  gsmMessageSMSCommand=0,
+  gsmMessageSMSText=   1,
+  gsmMessageCall       =2
+} gsmMessageType;
 
 
 //timers
@@ -119,13 +122,13 @@ typedef enum {
 #define SERIAL_INTERVAL_TIMER         10
 #define SERIAL_MAX_INTERVAL_TIMER     500
 #define GSM_INTERVAL_TIMER            230
+#define GSM_MAX_INTERVAL_TIMER        1000
 #define CP_MAX_INTERVAL_TIMER         1000
 #define BUS_MAX_INTERVAL_TIMER        10000
 #define TRIGGER_INTERVAL_TIMER        1000
 #define MQTT_RECONNECT_TIMER          10000
 #define MQTT_LOOP_TIMER               1000
 #define MQTT_PUBLISH_TIMER            60000
-#define BUMP_TIMER                    5000
 
 
 //TRIGGER
@@ -160,6 +163,7 @@ const PROGMEM char* GSM_CMD_AT ="AT\r";
 //STRINGS
 const PROGMEM char* STR_0 ="\0";
 const PROGMEM char* STR_N ="\n";
+//const PROGMEM char* STR_R ="\r";
 const PROGMEM char* STR_ON ="on";
 const PROGMEM char* STR_OFF ="off";
 const PROGMEM char* STR_YES ="Yes";
@@ -168,6 +172,7 @@ const PROGMEM char* STR_OK ="Ok";
 const PROGMEM char* STR_SUBSCRIPTION ="Subscription: ";
 
 const PROGMEM char* STR_GSM_OK ="OK\r\n";
+const PROGMEM char* STR_GSM_RETURN ="\r\n";
 
 const PROGMEM char* STR_UNKNOWN ="Unknown";
 const PROGMEM char* STR_RESET ="Reset";
@@ -250,7 +255,9 @@ const PROGMEM char* ERR_SEQUENCE_CANCELLED ="[E117]-Sequence aborted.\n";
 const PROGMEM char* ERR_UNKNOWN_DATA ="[E118]-Unknown data.\n";
 const PROGMEM char* ERR_TRIGGER ="[E118]-Unable to trigger alarm.\n";
 const PROGMEM char* ERR_SERIAL_GSM ="[E119]-Unable to open GSM serial port.\n";
-const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in gsm incoming data.\n";
+const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in GSM incoming data.\n";
+const PROGMEM char* ERR_GSM_TIMEOUT ="[E121]-Timeout in GSM communication.\n";
+const PROGMEM char* ERR_GSM_REJECTED ="[E122]-GSM command rejected.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
