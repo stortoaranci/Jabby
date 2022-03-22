@@ -125,7 +125,9 @@ long lngLastGSMCommandSent = 0;
 struct gsmMessage {
   gsmMessageType type = gsmMessageSMSCommand;
   uint8_t id = 0;
-  uint8_t data = 0;
+  uint8_t event = 0;
+  uint8_t source = 0;
+  int crc = 0;
 };
 
 std::vector<gsmMessage*> gsmMessages;   //a list of outgoing commands for GSM
@@ -139,7 +141,7 @@ uint8_t cpDevice =    0xFF;   //last device triggered (51 = Control Panel 0x33; 
 bool isCPDevice = false;
 uint8_t cpMessage =   0xFF;   //last displayed message
 bool isCPMessage = false;
-uint8_t cpLastEvent = 0xFF;   //last collected event
+//uint8_t cpLastEvent = 0xFF;   //last collected event
 
 long lngLastCPUpdateTime = 0; //last update time
 
@@ -782,9 +784,29 @@ void emptyGSMOutput() {
   gsmMessages.clear();
   //gsmMessages.reserve (MAX_GSM_MESSAGES);
 }
+
+void terminateGSMPacket() {
+  //add termination char
+  gsmInput[gsmPacketLen] = '\0';
+  //sniffing
+  if (intSubGSM) {
+    createMessage (intSubGSM, (char*)gsmInput, gsmPacketLen);
+
+    int len = (gsmPacketLen * 3) + 2;
+    char strHex[len];
+    for (int j = 0; j <= gsmPacketLen; j++) {
+      sprintf(strHex + (j * 3), "%02X ", gsmInput[j]);
+    }
+    strHex[len - 2] = '\n';
+    strHex[len - 1] = 0;
+
+    createMessage(intSubGSM, strHex, len);
+  }
+}
+
 /*
   ----------------------------------------------
-  INSTRUCTIONS
+  COMMANDS
   ----------------------------------------------
 */
 
@@ -1223,7 +1245,7 @@ void loop() {
       if (ssGSM) {
         ssGSM.end();
       }
-      ssGSM.begin(57600, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
+      ssGSM.begin(38400, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
       if (!ssGSM) {
         if (intSub) {
           createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));
@@ -1249,7 +1271,6 @@ void loop() {
     lngGSMTimeout = m;
 
     if (!gsmRetry) {
-
       //reset device
       resetGSM();
     } else {
@@ -1286,75 +1307,100 @@ void loop() {
               createMessage (intSub, ERR_GSM_INCOMING_DATA, strlen(ERR_GSM_INCOMING_DATA));
             }
             gsmPacketLen = 0;
-          } else {
-            //wait for the end of the packet
-            if ( ((gsmBusStatus & BUS_WAITING_PROMPT) &&  (buf[i] == '>')) || (!(gsmBusStatus & BUS_WAITING_PROMPT) && (buf[i] == '\n')) ) {
-              //add termination char
-              //gsmPacketLen++;
-              gsmInput[gsmPacketLen] = '\0';
+          } else if (buf[i] == '\n') { //wait for the end of the packet
 
-              //sniffing
-              if (intSubGSM) {
-                createMessage (intSubGSM, (char*)gsmInput, gsmPacketLen);
+            terminateGSMPacket();
+            //read the incoming packet
+            switch (gsmStatus) {
 
-                int len = (gsmPacketLen * 3) + 2;
-                char strHex[len];
-                for (int j = 0; j <= gsmPacketLen; j++) {
-                  sprintf(strHex + (j * 3), "%02X ", gsmInput[j]);
-                }
-                strHex[len - 2] = '\n';
-                strHex[len - 1] = 0;
+              case gsmStateAck:
+                if (!strcmp( (char*)gsmInput, STR_GSM_OK)) {
+                  if (intSub) {
+                    createMessage (intSub, INFO_GSM_CONNECTION_OK, strlen(INFO_GSM_CONNECTION_OK));
+                  }
+                  gsmStatus = gsmStateOk; //baud rate sync ok
+                }//is STR_GSM_OK?
+                break;
 
-                createMessage(intSubGSM, strHex, len);
-              }
+              case gsmStateOk:
+                if (!strcmp( (char*)gsmInput, STR_GSM_RETURN)) { //check <CR> char
+if (intSub) {
+  createMessage (intSub, "ret\n", strlen("ret\n"));
+}   
+                  //nothing to do
+                } else if (gsmBusStatus & BUS_WAITING_ECHO) {
+                  if (gsmMessages.size() > 0) {
+                    
+                    //calculate CRC
+                    int crc = calculateCRC(gsmInput, gsmPacketLen);
+String s = String(crc) +" - " + String(gsmMessages[0]->crc) + "\n";
+if (intSub) {
+  createMessage (intSub, s.c_str(), s.length());
+}
 
-              //read the incoming packet
-              switch (gsmStatus) {
-                case gsmStateAck:
-                  if (!strcmp( (char*)gsmInput, STR_GSM_OK)) {
-                    if (intSub) {
-                      createMessage (intSub, INFO_GSM_CONNECTION_OK, strlen(INFO_GSM_CONNECTION_OK));
-                    }
-                    gsmStatus = gsmStateOk; //baud rate sync ok
-                  }//is STR_GSM_OK?
-                  break;
-                case gsmStateOk:
-                  switch (gsmBusStatus) {
-                    case BUS_WAITING_PROMPT:
-                      //no need to check the buffer content
+                    if ((crc == gsmMessages[0]->crc) || gsmMessages[0]->crc < 0) { //exclude sent data in sms because it generates a bad crc in case of high baudrate
+                      gsmBusStatus &= BUS_NOT_ECHO;
+if (intSub) {
+  createMessage (intSub, "del echo\n", strlen("del echo\n"));
+}                      
+                    } else {
+                      gsmMessages[0]->type = gsmMessageDispose;
                       gsmBusStatus = BUS_FREE;
-                      break;
-                    default:
-                      //ack
-                      if (!strcmp( (char*)gsmInput, STR_GSM_OK)) {
-                        gsmBusStatus = BUS_FREE;
-
-                      } else {
-                        //check '+' char
-                        if ( (gsmInput[0] == '+') || !strcmp( (char*)gsmInput, STR_GSM_RETURN)) {
-                          //ignore response
-                          gsmBusStatus = BUS_WAITING_ACK;
-                        } else {
-                          //ko
-                          if (intSub) {
-                            createMessage (intSub, ERR_GSM_REJECTED, strlen(ERR_GSM_REJECTED));
-                          }
-                          gsmBusStatus = BUS_FREE;
-                          //emptyGSMOutput();
-                        }
-
+if (intSub) {
+  createMessage (intSub, "dis\n", strlen("dis\n"));
+}
+                      if (intSub) {
+                        createMessage (intSub, ERR_GSM_INCOMING_DATA, strlen(ERR_GSM_INCOMING_DATA));
                       }
-                  } //switch (gsmBusStatus)
-                  break;
-              } //switch (gsmStatus)
-              //empty the buffer
+                    }// crc
+                    //gsmBusStatus |= BUS_WAITING_ACK;
+                  } //(gsmMessages.size() > 0)
+                } else if (gsmBusStatus & BUS_WAITING_EXTENDED_ACK) { //wait for "+...." response
+if (intSub) {
+  createMessage (intSub, "no_ext\n", strlen("no_ext\n"));
+}
+                  gsmBusStatus &= BUS_NOT_EXTENDED_ACK;
 
-              if (intSub) {
-                createMessage (intSub, "4\n", strlen("1\n"));
+                } else if (gsmBusStatus & BUS_WAITING_ACK) {
+                  if ( (!strcmp((char*)gsmInput, STR_GSM_OK)) || (!strcmp((char*)gsmInput, STR_GSM_ERROR)) ) {
+                    gsmBusStatus = BUS_FREE;
+if (intSub) {
+  createMessage (intSub, "ack\n", strlen("ack\n"));
+}                    
+                    if (gsmMessages.size() > 0) {
+                      gsmMessages[0]->type = gsmMessageDispose;
+                    }
+                    if (intSub && (!strcmp((char*)gsmInput, STR_GSM_ERROR))) {
+                      createMessage (intSub, ERR_GSM_REJECTED, strlen(ERR_GSM_REJECTED));
+                    }
+                  } else {
+                    if (intSub) {
+                      createMessage (intSub, ERR_GSM_UNKNOWN, strlen(ERR_GSM_UNKNOWN));
+                    }
+                  }
+                }
+                break;
+
+            }
+            gsmPacketLen = 0;
+          } else if (gsmStatus == gsmStateOk && ((gsmBusStatus & BUS_WAITING_PROMPT) == BUS_WAITING_PROMPT) && (buf[i] == ' ') ) { //wait for promt "> "
+            if (gsmPacketLen = 2 && gsmInput[0] == '>') {
+if (intSub) {
+  createMessage (intSub, "prompt\n", strlen("prompt\n"));
+}
+              terminateGSMPacket();
+
+              //ready
+              if (gsmMessages.size() > 0) {
+                gsmMessages[0]->type = gsmMessageSMSText;
+if (intSub) {
+  createMessage (intSub, "txt\n", strlen("txt\n"));
+}
               }
+              gsmBusStatus = BUS_FREE;
               gsmPacketLen = 0;
-            } // EOF \n
-          }// else (gsmPacketLen >= MAX_GSM_PK_LEN - 1)
+            }
+          } // else (gsmPacketLen >= MAX_GSM_PK_LEN - 1)
         } //for i
 
       }
@@ -1633,8 +1679,9 @@ void loop() {
                         F("\nA:\t\t\t") + cpAToString() + F("\nB:\t\t\t") + cpBToString() + F("\nC:\t\t\t") + cpCToString() + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
-              strInfo = F("\ngsm:\nbus:\t\t\t") + String(gsmBusStatus) + F("\nlen:\t\t") + String(intGSMInput) + F("\ntyppe:\t\t") + String(gsmMessages.size() ? gsmMessages[0]->type : -1)
-                        + F("\nqueue:\t\t") + String(gsmMessages.size()) + STR_N;
+              strInfo = F("\ngsm:\nbus:\t\t\t") + String(gsmBusStatus) + F("\nlen:\t\t") + String(gsmPacketLen) + F("\ntype:\t\t") + String(gsmMessages.size() ? gsmMessages[0]->type : -1)
+                        + F("\nchar:\t\t") + String((int)gsmInput[0]) +
+                        + F("\nqueue:\t\t") + String(gsmMessages.size()) +  STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
 
@@ -2003,7 +2050,81 @@ void loop() {
                     cpInfo = serInput[4];
                     break;
 
-                  case 0xE3: case 0xE4: case 0xE7: //configuration?
+                  case 0xE3:
+                    /*
+                    online events: E3 - MM - GG - HH - mm - event - source - CRC - FF
+                    
+                    EVENTS:
+                       1A set A                         (source = code         )                  
+                       1B set B                         (source = code         )
+                       08 set ABC W code                (source = code         )
+                       09 unset                         (source = code         )
+                       0C set ABC wo code               (source = code         )
+                       41 service mode entered          (source = device online)
+                       42 service mode exit             (source = device online)
+                       14 backup battery fault          (source = CP           )
+                       05 tampering alarm               (source = device       )
+                       02 delay zone alarm              (source = device       )
+                       4E alarm cancelled by user       (source = code         )
+                       50 tamper contact ok             (source = CP           )
+                       03 fire zone alarm               (source = device       )
+                       43 alarm end                     (source = CP           )
+                       04 panic alarm                   (source = device       )
+                    */
+                    if (intGSMEnable && (intGSMSMSAlert || intGSMPhoneAlert)){ //only if enabled
+                      uint8_t data = 0;   
+                      switch (serInput[5]){
+                        case 0x1A: case 0x1B: case 0x08: case 0x0C:
+                          //set
+                          data = GSM_ALERT_SET;
+                          break;
+                        case 0x09:
+                          data = GSM_ALERT_UNSET;
+                          break;
+                        case 0x11: case 0x14:  
+                         //fault
+                         data = GSM_ALERT_FAULT;
+                         break;
+                        case 0x41: case 0x42:
+                         //service or maintenance
+                         data = serInput[6] == 0x40 ? GSM_ALERT_MAINTENANCE : GSM_ALERT_SERVICE;
+                         break;
+                        case 0x05: case 0x02: case 0x03: case 0x04: 
+                         //trigger
+                         data = GSM_ALERT_TRIGGER;
+                         break;
+                      } //serInput[5]
+                      bool sendSMS = (intGSMSMSAlert & data);
+                      bool makeCall = (intGSMPhoneAlert & data);
+
+                      if (sendSMS) {
+                        //send sms
+                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
+                          if (strlen(strGSMMemory[i])) {
+                            gsmMessages.push_back (new gsmMessage);
+                            gsmMessages.back()->type = gsmMessageSMSCommand;
+                            gsmMessages.back()->id = i;
+                            gsmMessages.back()->event = serInput[5];
+                            gsmMessages.back()->source = serInput[6];
+                          }
+                        }
+                      } //sendSMS
+
+                      if (makeCall) {
+                        //call phone numbers
+                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
+                          if (strlen(strGSMMemory[i])) {
+                            gsmMessages.push_back (new gsmMessage);
+                            gsmMessages.back()->type = gsmMessageCall;
+                            gsmMessages.back()->id = i;
+                            gsmMessages.back()->id = serInput[5];
+                            //gsmMessages.back()->extra = extra;
+                          }
+                        }
+                      } //makeCall                       
+                    }
+                    break;
+                  case 0xE4: case 0xE7: //other events
                     break;
                   case 0xE5:
                     break;
@@ -2025,69 +2146,8 @@ void loop() {
                   case 0xCE: case 0xCF: case 0xE0: case 0xE1: case 0xE2: case 0xEA: case 0xEB: case 0xEE:
                     break;
                   case 0xE8: //Status Change
-                    if ( (cpLastEvent != serInput[1]) && intGSMEnable ) {
-
-                      uint8_t data = 0;
-                      switch (serInput[1]) {
-                        // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
-                        case 0x02: case 0x04:
-                          //trigger
-                          data = GSM_ALERT_TRIGGER;
-                      }
-
-                      bool sendSMS = (intGSMSMSAlert & data);
-                      bool makeCall = (intGSMSMSAlert & data);
-
-                      if (sendSMS) {
-                        //send sms
-                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
-                          if (strlen(strGSMMemory[i])) {
-                            gsmMessages.push_back (new gsmMessage);
-                            gsmMessages.back()->type = gsmMessageSMSCommand;
-                            gsmMessages.back()->id = i;
-                            gsmMessages.back()->data = data;
-                          }
-                        }
-                      }
-
-                      if (makeCall) {
-                        //call phone numbers
-                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
-                          if (strlen(strGSMMemory[i])) {
-                            gsmMessages.push_back (new gsmMessage);
-                            gsmMessages.back()->type = gsmMessageCall;
-                            gsmMessages.back()->id = i;
-                            gsmMessages.back()->id = data;
-                          }
-                        }
-                      }
-                      cpLastEvent = serInput[1]; //update current event
-                    }
-                    /*
-                      if (cpLastEvent != serInput[1]) {
-                      uint8_t s[7]; // prepare a stream
-
-                      switch (serInput[1]) {
-                        // 02=Trigger delayed, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
-                        case 0x0D:
-
-                          //broadcast gsm
-                          //uint8_t s[7]; // prepare a stream
-                          memcpy_P(s,SER_MSG_GSM_ECHO,2);
-                          createStream(s, 2);
-                          //memcpy_P(s, SER_MSG_GSM, 7);
-                          //createStream(s, 9);
-
-                          break;
-                        case 0x0E:
-                          //uint8_t s[2]; // prepare a stream
-                          memcpy_P(s,SER_MSG_GSM_ECHO,2);
-                          createStream(s, 2);
-                          break;
-                      }
-                      cpLastEvent = serInput[1]; //update current event
-                      }
-                    */
+                    // 01 = Panic, 02=Trigger delayed, 03 = fire, 04=Trigger Immediate, 0B=Maintenance mode, 0C=Service mode, 0D=Query device, 0E=Normal Mode, 0F=??
+                    //cpLastEvent = serInput[1]; //update current event
                     break;
                   case 0xC6: //Pong from Keypad
                   case 0xB0: //?
@@ -2182,53 +2242,87 @@ void loop() {
     ----------------------------------------------
   */
   if (gsmMessages.size() > 0) {
-
-    if (!gsmBusStatus && !gsmPacketLen) {
+    if (!gsmMessages[0]->type) {
+      //remove the message from the queue
+      delete gsmMessages[0];
+      gsmMessages.erase(gsmMessages.begin());
+      if (!gsmMessages.size()) {
+        //free memory
+        emptyGSMOutput();
+      }
+    } else if (!gsmBusStatus && !gsmPacketLen) {
       String cmd;
       lngLastGSMCommandSent = m;
-      if (intSub) {
-        createMessage (intSub, "1\n", strlen("1\n"));
-      }
+
+if (intSub) {
+  createMessage (intSub, "1\n", strlen("1\n"));
+}
       switch (gsmMessages[0]->type) {
         case gsmMessageSMSCommand:
-          cmd = F("AT+CMGS=\"") + String(strGSMMemory[gsmMessages[0]->id]) + F("\"");
-          sendATCommand(cmd.c_str(), true);
-          gsmBusStatus = BUS_WAITING_PROMPT;
-          //switch to text
-          //gsmMessages[0]->type=gsmMessageSMSText;
+          cmd = F("AT+CMGS=\"") + String(strGSMMemory[gsmMessages[0]->id]) + F("\"\r\n");
+          sendATCommand(cmd.c_str(), false);
+          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+          gsmBusStatus = BUS_WAITING_PROMPT | BUS_WAITING_ECHO;
           break;
 
         case gsmMessageSMSText:
-          if (intSub) {
-            createMessage (intSub, "2\n", strlen("1\n"));
+if (intSub) {
+  createMessage (intSub, "2\n", strlen("1\n"));
+}
+          cmd = String(VERSION) + F(": ");
+          switch (gsmMessages[0]->event) {
+            case 0x1A:
+              cmd += STR_ARMED_A;
+              break;
+            case 0x1B:
+              cmd += STR_ARMED_B;
+              break;
+            case 0x0C: case 0x08:
+              cmd += STR_ARMED_ABC;
+              break;
+            case 0x09:
+              cmd += STR_ARMED_NONE;
+              break;
+            case 0x11:
+              cmd += SER_MSG_11;
+              break;
+            case 0x14:
+              cmd += SER_MSG_14;
+              break;
+            case 0x41:
+              cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
+              cmd += STR_MODE_ENTERED;
+              break;
+            case 0x42:
+              cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
+              cmd += STR_MODE_EXIT;
+              break;
+            case 0x02:
+              cmd += String(STR_MQTT_TRIGGERED) + String(STR_DELAYED) + String(STR_DEVICE) + String(gsmMessages[0]->source);
+              break;
+            case 0x03:
+              cmd += String(STR_MQTT_TRIGGERED) + String(STR_FIRE) + String(STR_DEVICE) + String(gsmMessages[0]->source);
+              break;
+            case 0x04:
+              cmd += String(STR_MQTT_TRIGGERED) + String(STR_PANIC) + String(STR_DEVICE) + String(gsmMessages[0]->source);
+              break;
+            case 0x05:
+              cmd += String(STR_MQTT_TRIGGERED) + String(STR_IMMEDIATE) + String(STR_DEVICE) + String(gsmMessages[0]->source);
+              break;              
           }
-          switch (gsmMessages[0]->data) {
-            case GSM_ALERT_TRIGGER:
-              cmd = SER_MSG_05;
-          }
-          cmd += F("\x1a");
+          //insert current datetime (tbd)
+          cmd += F("\x1A");
           sendATCommand(cmd.c_str(), false);
-          gsmBusStatus = BUS_WAITING_ACK;
-
+          cmd+=STR_GSM_RETURN;
+          gsmMessages[0]->crc = -1; //calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+          gsmBusStatus = BUS_WAITING_EXTENDED_ACK | BUS_WAITING_ACK | BUS_WAITING_ECHO;
+if (intSub) {
+  createMessage (intSub, "3\n", strlen("1\n"));
+}          
           break;
-          //default:
+         default:
           //call
-      }
-
-      if (gsmMessages[0]->type) {
-        //remove the message from the queue if is not a SMS command
-        delete gsmMessages[0];
-        gsmMessages.erase(gsmMessages.begin());
-        if (intSub) {
-          createMessage (intSub, "3\n", strlen("1\n"));
-        }
-        if (!gsmMessages.size()) {
-          //free memory
-          emptyGSMOutput();
-        }
-      } else {
-        //switch to text
-        gsmMessages[0]->type = gsmMessageSMSText;
+          gsmMessages[0]->type=gsmMessageDispose;
       }
 
     } //!gsmBusStatus && !gsmPacketLen

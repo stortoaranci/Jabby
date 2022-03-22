@@ -57,12 +57,6 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define SERIAL_PK_A                       8
 #define SERIAL_PK_WARNING                 0x30
 
-//E8 byte [1]
-//#define SERIAL_PK_E8_TRIGGER_MASK        0x06 //0x02, 0x04
-
-
-
-
 //Serial Outgoing traffic
 #define MAX_SERIAL_MSG_LEN 16   //max message len
 #define MAX_SERIAL_SEQ_LEN 16   //max sequence len
@@ -77,11 +71,15 @@ const PROGMEM char*  HELP_FILENAME = "/help.txt";
 #define CRC_POLY 0xA3
 
 //BUS
-#define BUS_FREE              0
-//#define BUS_IGNORE_ACK        1
-#define BUS_WAITING_ACK       2
-#define BUS_WAITING_PROMPT    4
-#define BUS_BUSY              8
+#define BUS_FREE                    0
+#define BUS_WAITING_ECHO            1
+#define BUS_WAITING_ACK             2
+#define BUS_WAITING_EXTENDED_ACK    4
+#define BUS_WAITING_PROMPT          8
+#define BUS_BUSY                   16
+#define BUS_NOT_ECHO             0xFE
+#define BUS_NOT_EXTENDED_ACK     0xFB
+
 
 //SERIAL COMMANDS
 typedef enum {
@@ -100,7 +98,7 @@ typedef enum {
 #define GSM_ALERT_FAULT           8
 #define GSM_ALERT_SERVICE         16
 #define GSM_ALERT_MAINTENANCE     32
-#define GSM_ALERT_TECHNICAL_FAULT 64
+//#define GSM_ALERT_TECHNICAL_FAULT 64
 
 typedef enum {
   gsmStateUnk      =0,
@@ -111,9 +109,10 @@ typedef enum {
 } gsmState;
 
 typedef enum {
-  gsmMessageSMSCommand=0,
-  gsmMessageSMSText=   1,
-  gsmMessageCall       =2
+  gsmMessageDispose    =0,
+  gsmMessageSMSCommand =1,
+  gsmMessageSMSText    =2,
+  gsmMessageCall       =3
 } gsmMessageType;
 
 
@@ -147,13 +146,14 @@ typedef enum {
 //SERIAL MESSAGES
 const PROGMEM char* SER_MSG_02 ="Delayed Alarm";
 const PROGMEM char* SER_MSG_05 ="Tamper Alarm";
-const PROGMEM char* SER_MSG_11 ="Battery Fault (1)";
+const PROGMEM char* SER_MSG_11 ="Battery Fault";
 const PROGMEM char* SER_MSG_14 ="Accumulator Fault CP";
 const PROGMEM char* SER_MSG_33 ="Serivce Mode";
 const PROGMEM char* SER_MSG_34 ="Maintenance Mode";
 const PROGMEM char* SER_MSG_36 ="Invalid code-exc";
 const PROGMEM char* SER_MSG_38 ="Exit Delay";
 const PROGMEM char* SER_MSG_39 ="Entrance Delay";
+const PROGMEM char* SER_MSG_40 ="Power ON CP";
 const PROGMEM char* SER_MSG_3A ="Trigger Detect";
 const PROGMEM char* SER_MSG_3F ="Active Detectors";
 
@@ -170,9 +170,18 @@ const PROGMEM char* STR_YES ="Yes";
 const PROGMEM char* STR_NO ="No";
 const PROGMEM char* STR_OK ="Ok";
 const PROGMEM char* STR_SUBSCRIPTION ="Subscription: ";
+const PROGMEM char* STR_DELAYED =" (Delayed)";
+const PROGMEM char* STR_IMMEDIATE =" (Immediate)";
+const PROGMEM char* STR_PANIC =" (Panic)";
+const PROGMEM char* STR_FIRE =" (Fire)";
+const PROGMEM char* STR_DEVICE =" device: ";
+const PROGMEM char* STR_MODE_ENTERED =" mode entered";
+const PROGMEM char* STR_MODE_EXIT =" mode exit";
 
 const PROGMEM char* STR_GSM_OK ="OK\r\n";
+const PROGMEM char* STR_GSM_ERROR ="ERROR\r\n";
 const PROGMEM char* STR_GSM_RETURN ="\r\n";
+
 
 const PROGMEM char* STR_UNKNOWN ="Unknown";
 const PROGMEM char* STR_RESET ="Reset";
@@ -258,6 +267,7 @@ const PROGMEM char* ERR_SERIAL_GSM ="[E119]-Unable to open GSM serial port.\n";
 const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in GSM incoming data.\n";
 const PROGMEM char* ERR_GSM_TIMEOUT ="[E121]-Timeout in GSM communication.\n";
 const PROGMEM char* ERR_GSM_REJECTED ="[E122]-GSM command rejected.\n";
+const PROGMEM char* ERR_GSM_UNKNOWN ="[E123]-GSM unknown response.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
