@@ -581,28 +581,17 @@ String cpMessageToString() {
   switch (cpMessage) {
     case 0:
       return STR_0;
-    case 2:
-      return SER_MSG_02;
-    case 5:
-      return SER_MSG_05;
-    case 0x11:
-      return SER_MSG_11;
-    case 0x14:
-      return SER_MSG_14;
-    case 0x33:
-      return SER_MSG_33;
-    case 0x34:
-      return SER_MSG_34;
-    case 0x36:
-      return SER_MSG_36;
-    case 0x38:
-      return SER_MSG_38;
-    case 0x39:
-      return SER_MSG_39;
-    case 0x3A:
-      return SER_MSG_3A;
-    case 0x3F:
-      return SER_MSG_3F;
+    case 1: return SER_MSG_01; case 2: return SER_MSG_02; case 3: return SER_MSG_03; case 4: return SER_MSG_04;  case 5: return SER_MSG_05;
+    case 6: return SER_MSG_06; case 7: return SER_MSG_07; case 8: return SER_MSG_08; case 9: return SER_MSG_09;  case 0x0C: return SER_MSG_0C;
+    case 0x0D: return SER_MSG_0D; case 0x0E: return SER_MSG_0E; case 0x0F: return SER_MSG_0F; case 0x10: return SER_MSG_10; case 0x11: return SER_MSG_11;
+    case 0x14: return SER_MSG_14; case 0x15: return SER_MSG_15; case 0x17: return SER_MSG_17; case 0x18: return SER_MSG_18; case 0x1A: return SER_MSG_1A;
+    case 0x1B: return SER_MSG_1B; case 0x1C: return SER_MSG_1C; case 0x1D: return SER_MSG_1D; case 0x1E: return SER_MSG_1E; case 0x1F: return SER_MSG_1F;
+    case 0x21: return SER_MSG_21; case 0x33: return SER_MSG_33; case 0x34: return SER_MSG_34; case 0x36: return SER_MSG_36; case 0x38: return SER_MSG_38;
+    case 0x39: return SER_MSG_39; case 0x3A: return SER_MSG_3A; case 0x3F: return SER_MSG_3F; case 0x40: return SER_MSG_40; case 0x43: return SER_MSG_43;
+    case 0x4E: return SER_MSG_4E; case 0x4F: return SER_MSG_4F; case 0x50: return SER_MSG_50; case 0x51: return SER_MSG_51; case 0x52: return SER_MSG_52;
+    case 0x55: return SER_MSG_55; case 0x56: return SER_MSG_56; case 0x59: return SER_MSG_59; case 0x5A: return SER_MSG_5A; case 0x5B: return SER_MSG_5B;
+    case 0x5C: return SER_MSG_5C; case 0x5D: return SER_MSG_5D; case 0x5E: return SER_MSG_5E; case 0x5F: return SER_MSG_5F; case 0x60: return SER_MSG_60;
+    case 0x61: return SER_MSG_61;
   }
   return String(cpMessage);
 }
@@ -644,7 +633,6 @@ String cpArmedToString() {
 
     default:
       return STR_ARMED_NONE;
-
   }
 }
 
@@ -746,7 +734,7 @@ int calculateCRC (const uint8_t* message, size_t len ) {
 void setCRC(uint8_t* message, size_t len) {
   if (len > 2) {
     int magicNumber = calculateCRC(message, len - 2);
-    uint8_t *p = message;
+    
     int c = CRC_POLY;
     for (int k = 8; k > 0; k--) {
       magicNumber += magicNumber;
@@ -757,8 +745,8 @@ void setCRC(uint8_t* message, size_t len) {
         magicNumber ^= CRC_POLY;
       }
       c += c;
-    } // for k
-    *(p + len - 1) = magicNumber;
+    } // for k    
+    *(message+len-2) = (uint8_t)magicNumber;
   }
 }
 
@@ -785,7 +773,7 @@ void emptyGSMOutput() {
   //gsmMessages.reserve (MAX_GSM_MESSAGES);
 }
 
-void terminateGSMPacket() {
+void finalizeGSMPacket() {
   //add termination char
   gsmInput[gsmPacketLen] = '\0';
   //sniffing
@@ -1049,20 +1037,41 @@ bool createSequence(int terminal, const char* command) {
   return true;
 }
 
-bool sendRawCommand(char* command) {
+bool sendPacket(char* command) {
+  String s;
+  char *ptrCommand = strtok(command, " ");
+  char *p;
+  
+  while (ptrCommand != NULL) {
+    long result = strtol(ptrCommand, &p, 10);
+    if (result >= 0 && result <= 255) {
+      s+=(char)result;
+    } else {
+      return false;
+    }
+    ptrCommand = strtok (NULL, " ");
+  }
+  
+  size_t len = (s.length()>1) ? s.length()+2 : s.length()+1;
+  uint8_t buf[len];
+  memcpy((char *)buf,s.c_str(),len);
+  buf[len-1] = SERIAL_PK_END;
+  setCRC(buf,len);
+  createStream(buf,len);
+  return true;
+}
+
+bool sendRawPacket(char* command) {
 
   char *ptrCommand = strtok(command, " ");
   char *p;
   digitalWrite(REDE_PIN, HIGH);
   while (ptrCommand != NULL) {
-
     long result = strtol(ptrCommand, &p, 10);
-
     if (result >= 0 && result <= 255) {
       Serial.write((uint8_t)result);
       delay(SERIAL_INTERVAL_TIMER);
     } else {
-      //delay (5);
       digitalWrite(REDE_PIN, LOW);
       return false;
     }
@@ -1309,7 +1318,7 @@ void loop() {
             gsmPacketLen = 0;
           } else if (buf[i] == '\n') { //wait for the end of the packet
 
-            terminateGSMPacket();
+            finalizeGSMPacket();
             //read the incoming packet
             switch (gsmStatus) {
 
@@ -1338,7 +1347,7 @@ if (intSub) {
   createMessage (intSub, s.c_str(), s.length());
 }
 
-                    if ((crc == gsmMessages[0]->crc) || gsmMessages[0]->crc < 0) { //exclude sent data in sms because it generates a bad crc in case of high baudrate
+                    if ((crc == gsmMessages[0]->crc) ){ // || gsmMessages[0]->crc < 0) { //exclude sent data in sms because it generates a bad crc in case of high baudrate
                       gsmBusStatus &= BUS_NOT_ECHO;
 if (intSub) {
   createMessage (intSub, "del echo\n", strlen("del echo\n"));
@@ -1388,7 +1397,7 @@ if (intSub) {
 if (intSub) {
   createMessage (intSub, "prompt\n", strlen("prompt\n"));
 }
-              terminateGSMPacket();
+              finalizeGSMPacket();
 
               //ready
               if (gsmMessages.size() > 0) {
@@ -1423,16 +1432,16 @@ if (intSub) {
         if (serMessages[0]->type) {
           serialBusStatus = BUS_WAITING_ACK;
           Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
-          //delay(20);
           Serial.write(SERIAL_PK_END);
-          //delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
           serMessages[0]->pointer++;
         } else {
           //serialBusStatus = BUS_IGNORE_ACK;
           while (serMessages[0]->pointer < serMessages[0]->length) {
+
             Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
             serMessages[0]->pointer++;
-            //delay(SERIAL_INTERVAL_TIMER);
+delay(SERIAL_INTERVAL_TIMER);
+           
           }//while
         }
         delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
@@ -1575,7 +1584,7 @@ if (intSub) {
                 if (!strcmp(ptrParameter, "x") || !strcmp(ptrParameter, "y")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                   blCheckValue = true;
-                } else if (!strcmp(ptrParameter, "a") || !strcmp(ptrParameter, "at") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "rw")) {
+                } else if (!strcmp(ptrParameter, "a") || !strcmp(ptrParameter, "at") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "rp")|| !strcmp(ptrParameter, "sp")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                 } else {
                   //malformed command
@@ -1611,9 +1620,14 @@ if (intSub) {
 
             if (!strcmp(slots[inMessages[i]->terminal].command, "e")) {
 
-              if (!strcmp(slots[inMessages[i]->terminal].parameter, "rw")) {
+              if (!strcmp(slots[inMessages[i]->terminal].parameter, "rp")) {
                 //createMessage(intSub,slots[inMessages[i]->terminal].value, strlen(slots[inMessages[i]->terminal].value));
-                blCheckCommand = sendRawCommand(slots[inMessages[i]->terminal].value);
+                blCheckCommand = sendRawPacket(slots[inMessages[i]->terminal].value);
+                if (!blCheckCommand) {
+                  createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
+                }
+              }else if (!strcmp(slots[inMessages[i]->terminal].parameter, "sp")) {
+                blCheckCommand = sendPacket(slots[inMessages[i]->terminal].value);
                 if (!blCheckCommand) {
                   createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
                 }
@@ -2074,25 +2088,30 @@ if (intSub) {
                     if (intGSMEnable && (intGSMSMSAlert || intGSMPhoneAlert)){ //only if enabled
                       uint8_t data = 0;   
                       switch (serInput[5]){
-                        case 0x1A: case 0x1B: case 0x08: case 0x0C:
+                        case 8: case 12: case 13: case 26: case 27: case 30: case 33:
                           //set
                           data = GSM_ALERT_SET;
                           break;
-                        case 0x09:
+                        case 9: case 28: case 29: case 31:
                           data = GSM_ALERT_UNSET;
                           break;
-                        case 0x11: case 0x14:  
+                        case 7: case 14: case 15: case 17: case 20: case 24: case 89:
                          //fault
                          data = GSM_ALERT_FAULT;
                          break;
-                        case 0x41: case 0x42:
-                         //service or maintenance
-                         data = serInput[6] == 0x40 ? GSM_ALERT_MAINTENANCE : GSM_ALERT_SERVICE;
+                        case 16: case 21: case 81:
+                         //recovery
+                         data = GSM_ALERT_RECOVERY;
                          break;
-                        case 0x05: case 0x02: case 0x03: case 0x04: 
+                        case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 23: case 90:
                          //trigger
                          data = GSM_ALERT_TRIGGER;
                          break;
+                        case 64: case 65: case 66: case 67: case 78: case 79: case 80: case 82: case 85: case 86: case 91: case 92: case 93:case 94: case 95: case 96: case 97:
+                        //info
+                        data = GSM_ALERT_INFO;
+                        break;
+                          
                       } //serInput[5]
                       bool sendSMS = (intGSMSMSAlert & data);
                       bool makeCall = (intGSMPhoneAlert & data);
@@ -2115,9 +2134,9 @@ if (intSub) {
                         for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
                           if (strlen(strGSMMemory[i])) {
                             gsmMessages.push_back (new gsmMessage);
-                            gsmMessages.back()->type = gsmMessageCall;
+                            gsmMessages.back()->type = gsmMessageCallDial;
                             gsmMessages.back()->id = i;
-                            gsmMessages.back()->id = serInput[5];
+                            gsmMessages.back()->event = serInput[5];
                             //gsmMessages.back()->extra = extra;
                           }
                         }
@@ -2271,58 +2290,91 @@ if (intSub) {
 }
           cmd = String(VERSION) + F(": ");
           switch (gsmMessages[0]->event) {
-            case 0x1A:
-              cmd += STR_ARMED_A;
+            case 0:
+              cmd += STR_ARMED_AFTER_POWER_UP;
               break;
-            case 0x1B:
-              cmd += STR_ARMED_B;
+            case 1:
+              cmd += String(SER_MSG_01) + String(STR_DEVICE) + String(gsmMessages[0]->source);
               break;
-            case 0x0C: case 0x08:
-              cmd += STR_ARMED_ABC;
+            case 2:
+              cmd += String(SER_MSG_02) + String(STR_DEVICE) + String(gsmMessages[0]->source);
               break;
-            case 0x09:
-              cmd += STR_ARMED_NONE;
+            case 3:
+              cmd += String(SER_MSG_03) + String(STR_DEVICE) + String(gsmMessages[0]->source);
               break;
-            case 0x11:
-              cmd += SER_MSG_11;
+            case 4:
+              cmd += String(SER_MSG_04) + String(STR_DEVICE) + String(gsmMessages[0]->source);
               break;
-            case 0x14:
-              cmd += SER_MSG_14;
+            case 5:
+              cmd += String(SER_MSG_05) + String(STR_DEVICE) + String(gsmMessages[0]->source);
               break;
-            case 0x41:
+            case 6: cmd += SER_MSG_06; break;
+            case 7: cmd += SER_MSG_07; break;
+            case 8: cmd += SER_MSG_08; break;
+            case 9: cmd += SER_MSG_09; break;
+            case 12: cmd += SER_MSG_0C; break;
+            case 13: cmd += SER_MSG_0D; break;
+            case 14: cmd += SER_MSG_0E; break;
+            case 15: cmd += SER_MSG_0F; break;
+            case 16: cmd += SER_MSG_10; break;
+            case 17: cmd += SER_MSG_11; break;
+            case 20: cmd += SER_MSG_14; break;
+            case 21: cmd += SER_MSG_15; break;              
+            case 23: cmd += SER_MSG_17; break; 
+            case 24: cmd += SER_MSG_18; break; 
+            case 26: cmd += SER_MSG_1A; break;
+            case 27: cmd += SER_MSG_1B; break;
+            case 28: cmd += SER_MSG_1C; break;
+            case 29: cmd += SER_MSG_1D; break;
+            case 30: cmd += SER_MSG_1E; break;
+            case 31: cmd += SER_MSG_1F; break;
+            case 33: cmd += SER_MSG_21; break;
+            case 64: cmd += SER_MSG_40; break;  
+            case 65:
               cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
               cmd += STR_MODE_ENTERED;
               break;
-            case 0x42:
+            case 66:
               cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
               cmd += STR_MODE_EXIT;
               break;
-            case 0x02:
-              cmd += String(STR_MQTT_TRIGGERED) + String(STR_DELAYED) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 0x03:
-              cmd += String(STR_MQTT_TRIGGERED) + String(STR_FIRE) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 0x04:
-              cmd += String(STR_MQTT_TRIGGERED) + String(STR_PANIC) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 0x05:
-              cmd += String(STR_MQTT_TRIGGERED) + String(STR_IMMEDIATE) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;              
+            case 67: cmd += SER_MSG_43; break;
+            case 78: cmd += SER_MSG_4E; break;
+            case 79: cmd += SER_MSG_4F; break;
+            case 80: cmd += SER_MSG_50; break;
+            case 81: cmd += SER_MSG_51; break;
+            case 82: cmd += SER_MSG_52; break;
+            case 85: cmd += SER_MSG_55; break;
+            case 86: cmd += SER_MSG_56; break;
+            case 89: cmd += SER_MSG_59; break;
+            case 90: cmd += SER_MSG_5A; break;
+            case 91: cmd += SER_MSG_5B; break;
+            case 92: cmd += SER_MSG_5C; break;
+            case 93: cmd += SER_MSG_5D; break;
+            case 94: cmd += SER_MSG_5E; break;
+            case 95: cmd += SER_MSG_5F; break;
+            case 96: cmd += SER_MSG_60; break;
+            case 97: cmd += SER_MSG_61; break;
           }
           //insert current datetime (tbd)
           cmd += F("\x1A");
           sendATCommand(cmd.c_str(), false);
           cmd+=STR_GSM_RETURN;
-          gsmMessages[0]->crc = -1; //calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
           gsmBusStatus = BUS_WAITING_EXTENDED_ACK | BUS_WAITING_ACK | BUS_WAITING_ECHO;
 if (intSub) {
   createMessage (intSub, "3\n", strlen("1\n"));
 }          
           break;
-         default:
-          //call
-          gsmMessages[0]->type=gsmMessageDispose;
+        case gsmMessageCallDial:
+          cmd = F("ATD") + String(strGSMMemory[gsmMessages[0]->id]) + String(STR_GSM_RETURN);
+          sendATCommand(cmd.c_str(), false);
+          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+          gsmBusStatus = BUS_WAITING_ACK | BUS_WAITING_ECHO;
+          break;   
+        default:
+         //call
+         gsmMessages[0]->type=gsmMessageDispose;
       }
 
     } //!gsmBusStatus && !gsmPacketLen

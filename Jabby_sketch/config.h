@@ -13,8 +13,11 @@
 const PROGMEM char* VERSION = "Jabby_0.1.5";
 const PROGMEM char* NAME ="Jabby";
 
-const PROGMEM char*  DATA_FILENAME = "/data.json";
-const PROGMEM char*  HELP_FILENAME = "/help.txt";
+//file system
+const PROGMEM char* DATA_FILENAME = "/data.json";
+const PROGMEM char* HELP_FILENAME = "/help.txt";
+const PROGMEM char* AMR_00_FILENAME = "/0.amr";
+
 
 #define MAX_TCP_CONNECTIONS   3
 #define MAX_TCP_MESSAGES      5
@@ -96,9 +99,9 @@ typedef enum {
 #define GSM_ALERT_UNSET           2
 #define GSM_ALERT_TRIGGER         4
 #define GSM_ALERT_FAULT           8
-#define GSM_ALERT_SERVICE         16
-#define GSM_ALERT_MAINTENANCE     32
-//#define GSM_ALERT_TECHNICAL_FAULT 64
+#define GSM_ALERT_RECOVERY       16
+#define GSM_ALERT_INFO           32
+//#define GSM_ALERT_INFO            64
 
 typedef enum {
   gsmStateUnk      =0,
@@ -112,7 +115,8 @@ typedef enum {
   gsmMessageDispose    =0,
   gsmMessageSMSCommand =1,
   gsmMessageSMSText    =2,
-  gsmMessageCall       =3
+  gsmMessageCallDial   =3,
+  gsmMessageCallPlay   =4
 } gsmMessageType;
 
 
@@ -144,18 +148,57 @@ typedef enum {
 } armCommand;
 
 //SERIAL MESSAGES
+const PROGMEM char* SER_MSG_01 ="Istant Alarm";
 const PROGMEM char* SER_MSG_02 ="Delayed Alarm";
+const PROGMEM char* SER_MSG_03 ="Fire Alarm";
+const PROGMEM char* SER_MSG_04 ="Panic Alarm";
 const PROGMEM char* SER_MSG_05 ="Tamper Alarm";
+const PROGMEM char* SER_MSG_06 ="Invalid code-entries exceeded";
+const PROGMEM char* SER_MSG_07 ="Device fault";
+const PROGMEM char* SER_MSG_08 ="Complete setting";
+const PROGMEM char* SER_MSG_09 ="Complete unsetting";
+const PROGMEM char* SER_MSG_0C ="Codeless setting";
+const PROGMEM char* SER_MSG_0D ="Partial setting A";
+const PROGMEM char* SER_MSG_0E ="Internal comm. failure";
+const PROGMEM char* SER_MSG_0F ="Mains dropout";
+const PROGMEM char* SER_MSG_10 ="Mains recovery";
 const PROGMEM char* SER_MSG_11 ="Battery Fault";
 const PROGMEM char* SER_MSG_14 ="Accumulator Fault CP";
+const PROGMEM char* SER_MSG_15 ="Accumulator CP Ok";
+const PROGMEM char* SER_MSG_17 ="Alarm 24h";
+const PROGMEM char* SER_MSG_18 ="Radio jamming";
+const PROGMEM char* SER_MSG_1A ="Set A (split)";
+const PROGMEM char* SER_MSG_1B ="Set B (split)";
+const PROGMEM char* SER_MSG_1C ="Unset A (split)";
+const PROGMEM char* SER_MSG_1D ="Unset B (split)";
+const PROGMEM char* SER_MSG_1E ="Set C (split)";
+const PROGMEM char* SER_MSG_1F ="Unset C (split)";
+const PROGMEM char* SER_MSG_21 ="Partial setting AB";
 const PROGMEM char* SER_MSG_33 ="Serivce Mode";
 const PROGMEM char* SER_MSG_34 ="Maintenance Mode";
 const PROGMEM char* SER_MSG_36 ="Invalid code-exc";
 const PROGMEM char* SER_MSG_38 ="Exit Delay";
 const PROGMEM char* SER_MSG_39 ="Entrance Delay";
-const PROGMEM char* SER_MSG_40 ="Power ON CP";
 const PROGMEM char* SER_MSG_3A ="Trigger Detect";
 const PROGMEM char* SER_MSG_3F ="Active Detectors";
+const PROGMEM char* SER_MSG_40 ="Power ON CP";
+const PROGMEM char* SER_MSG_43 ="End of Alarm";
+const PROGMEM char* SER_MSG_4E ="Alarm cancelled by user";
+const PROGMEM char* SER_MSG_4F ="CP reset";
+const PROGMEM char* SER_MSG_50 ="All tampers calm";
+const PROGMEM char* SER_MSG_51 ="All faults removed";
+const PROGMEM char* SER_MSG_52 ="System power ok";
+const PROGMEM char* SER_MSG_55 ="Master code reset";
+const PROGMEM char* SER_MSG_56 ="Master code changed";
+const PROGMEM char* SER_MSG_59 ="Mains dropout exceeding 30 min";
+const PROGMEM char* SER_MSG_5A ="Unconfirmed alarm";
+const PROGMEM char* SER_MSG_5B ="Service request";
+const PROGMEM char* SER_MSG_5C ="PgX on";
+const PROGMEM char* SER_MSG_5D ="PgX off";
+const PROGMEM char* SER_MSG_5E ="PgY on";
+const PROGMEM char* SER_MSG_5F ="PgY off";
+const PROGMEM char* SER_MSG_60 ="Eng. reset req.";
+const PROGMEM char* SER_MSG_61 ="Eng. reset done";
 
 //GSM COMMANDS
 const PROGMEM char* GSM_CMD_AT ="AT\r";
@@ -170,18 +213,17 @@ const PROGMEM char* STR_YES ="Yes";
 const PROGMEM char* STR_NO ="No";
 const PROGMEM char* STR_OK ="Ok";
 const PROGMEM char* STR_SUBSCRIPTION ="Subscription: ";
-const PROGMEM char* STR_DELAYED =" (Delayed)";
-const PROGMEM char* STR_IMMEDIATE =" (Immediate)";
-const PROGMEM char* STR_PANIC =" (Panic)";
-const PROGMEM char* STR_FIRE =" (Fire)";
 const PROGMEM char* STR_DEVICE =" device: ";
 const PROGMEM char* STR_MODE_ENTERED =" mode entered";
 const PROGMEM char* STR_MODE_EXIT =" mode exit";
+const PROGMEM char* STR_ARMED_AFTER_POWER_UP ="Alarm after powering up";
 
 const PROGMEM char* STR_GSM_OK ="OK\r\n";
+const PROGMEM char* STR_GSM_BUSY ="BUSY\r\n";
+const PROGMEM char* STR_GSM_NO_DIAL_TONE ="NO DIAL TONE\r\n";
+const PROGMEM char* STR_GSM_NO_CARRIER ="NO CARRIER\r\n";
 const PROGMEM char* STR_GSM_ERROR ="ERROR\r\n";
 const PROGMEM char* STR_GSM_RETURN ="\r\n";
-
 
 const PROGMEM char* STR_UNKNOWN ="Unknown";
 const PROGMEM char* STR_RESET ="Reset";

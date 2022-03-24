@@ -18,8 +18,8 @@ VARIABLES:
 	AC			Access code for arm/disam
 	GE			Enable/Disable GSM features
 	GM <value>		Phone memory of 5 slots (0..4), max 20 digits, the 1st digit means the position; ie: v GM 3003933512345678 means 003933512345678 in #3
-	GPA <value>		Alert settings by phone (0=Disable; 1=Set, 2=Unset, 4=Trigger, 8=Fault, 16=Service, 32=Maintenance)
-				ie: v GPA 7 enables Set, Unset and Fault
+	GPA <value>		Alert settings by phone (0=Disable; 1=Set, 2=Unset, 4=Trigger, 8=Fault, 16=Recovery, 32=Info)
+				ie: v GPA 7 enables set, unset and trigger
 	GSA <value>		Alert settings by SMS (see GPA)
 	MS			MQTT server IP address or DNS name
 	MP			MQTT TCP port
@@ -37,6 +37,6 @@ VARIABLES:
 COMMANDS:
 	a <value>		Sets alarm (0=None; 1=ABC; 2=A; 3=C)
 	at <text>		Sends AT command to GSM
-	s  <text>		Submits a key sequence
-	rw <value>		Sends raw commands to CP. Ie: e rw  143 255 128 255
-	
+	rp <value>		Sends raw packets to CP. Ie: e rp  143 255 128 255
+	s  <text>		Submits a key sequence	
+	sp <value>		Sends packets to CP. Ie: e sp 232 13 -> E8 0D 22 FF  
