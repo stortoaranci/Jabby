@@ -1,4 +1,3 @@
-#include <WiFiClientSecure.h>
 #include <ESP8266httpUpdate.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
@@ -11,6 +10,9 @@
 #include <unistd.h>
 #include <SoftwareSerial.h>
 #include "secrets.h"
+#ifdef SECURE_MQTT
+#include <WiFiClientSecure.h>
+#endif
 
 //Configuration
 char strMQTTServer[50] =  "\0"; //MQTT_SERVER;
@@ -970,8 +972,8 @@ bool loadHelp(int slot) {
 }
 
 int checkUpdate(int slot, bool reboot) {
-
-  t_httpUpdate_return result = ESPhttpUpdate.update(espClient, strOTAWebServer, intOTAWebPort, strOTAWebPage, VERSION);
+  WiFiClient espUpdate;
+  t_httpUpdate_return result = ESPhttpUpdate.update(espUpdate, strOTAWebServer, intOTAWebPort, strOTAWebPage, VERSION);   
   String s = F("Current version: [") + String(VERSION) + F("]\nCheck for updates on ") + String(strOTAWebServer) + F(":") + String(intOTAWebPort) + String(strOTAWebPage) + STR_N;
 
   if (slot >= 0 and slot <= MAX_TCP_CONNECTIONS) {
@@ -995,6 +997,9 @@ int checkUpdate(int slot, bool reboot) {
 
   s += STR_N;
   createMessage(intSub + slot, s.c_str(), s.length());
+  
+  espUpdate.flush();
+  espUpdate.stop();
   return result;
 }
 
@@ -1255,7 +1260,7 @@ void loop() {
       if (ssGSM) {
         ssGSM.end();
       }
-      ssGSM.begin(GSM_BAUD_RATE, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
+      ssGSM.begin(GSM_BAUD_RATE, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, GSM_BUFFER); //,256);
       if (!ssGSM) {
         if (intSub) {
           createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));

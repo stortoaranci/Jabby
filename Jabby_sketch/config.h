@@ -10,7 +10,7 @@
 #define GSM_RX_PIN D2 //G
 #define GSM_TX_PIN D1 //Y
 
-const PROGMEM char* VERSION = "Jabby_0.1.5";
+const PROGMEM char* VERSION = "Jabby_0.2.8";
 const PROGMEM char* NAME ="Jabby";
 
 //file system
@@ -92,7 +92,8 @@ typedef enum {
 
 
 //GSM
-#define GSM_BAUD_RATE             9600
+#define GSM_BAUD_RATE             38400
+#define GSM_BUFFER                16
 #define MAX_GSM_PK_LEN            64
 #define GSM_RETRY                 15
 
@@ -137,8 +138,8 @@ typedef enum {
 #define SERIAL_INTERVAL_TIMER             10
 #define SERIAL_MAX_INTERVAL_TIMER         500
 #define GSM_INTERVAL_TIMER                230
-#define GSM_WAIT_ANSWER_INTERVAL_TIMER    1000
-#define GSM_MAX_INTERVAL_TIMER            1000
+#define GSM_WAIT_ANSWER_INTERVAL_TIMER    2000
+#define GSM_MAX_INTERVAL_TIMER            3000
 #define CP_MAX_INTERVAL_TIMER             1000
 #define BUS_MAX_INTERVAL_TIMER            10000
 #define TRIGGER_INTERVAL_TIMER            1000
