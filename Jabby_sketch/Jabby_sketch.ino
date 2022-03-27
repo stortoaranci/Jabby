@@ -121,6 +121,7 @@ uint8_t gsmPacketLen = 0;
 long lngLastGSMUpdateTime = 0;
 uint8_t gsmBusStatus = 0;
 long lngLastGSMCommandSent = 0;
+long lngGSMWaitForAnswer   = 0;
 
 struct gsmMessage {
   gsmMessageType type = gsmMessageSMSCommand;
@@ -1254,7 +1255,7 @@ void loop() {
       if (ssGSM) {
         ssGSM.end();
       }
-      ssGSM.begin(38400, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
+      ssGSM.begin(GSM_BAUD_RATE, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, 32); //,256);
       if (!ssGSM) {
         if (intSub) {
           createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));
@@ -1332,20 +1333,13 @@ void loop() {
                 break;
 
               case gsmStateOk:
-                if (!strcmp( (char*)gsmInput, STR_GSM_RETURN)) { //check <CR> char
-if (intSub) {
-  createMessage (intSub, "ret\n", strlen("ret\n"));
-}   
+                if (!strcmp( (char*)gsmInput, STR_GSM_RETURN)) { //check <CR> char  
                   //nothing to do
                 } else if (gsmBusStatus & BUS_WAITING_ECHO) {
                   if (gsmMessages.size() > 0) {
                     
                     //calculate CRC
                     int crc = calculateCRC(gsmInput, gsmPacketLen);
-String s = String(crc) +" - " + String(gsmMessages[0]->crc) + "\n";
-if (intSub) {
-  createMessage (intSub, s.c_str(), s.length());
-}
 
                     if ((crc == gsmMessages[0]->crc) ){ // || gsmMessages[0]->crc < 0) { //exclude sent data in sms because it generates a bad crc in case of high baudrate
                       gsmBusStatus &= BUS_NOT_ECHO;
@@ -1353,7 +1347,7 @@ if (intSub) {
   createMessage (intSub, "del echo\n", strlen("del echo\n"));
 }                      
                     } else {
-                      gsmMessages[0]->type = gsmMessageDispose;
+                      gsmMessages[0]->type = ((gsmMessages[0]->type >= gsmMessageCallDial) && (gsmMessages[0]->type < gsmMessageCallDisconnect)) ? gsmMessageCallDisconnect: gsmMessageDispose;
                       gsmBusStatus = BUS_FREE;
 if (intSub) {
   createMessage (intSub, "dis\n", strlen("dis\n"));
@@ -1370,8 +1364,49 @@ if (intSub) {
 }
                   gsmBusStatus &= BUS_NOT_EXTENDED_ACK;
 
+                  if (gsmMessages.size() > 0) {
+                    switch (gsmMessages[0]->type){
+                      case gsmMessageCallWaitForAnswer:
+                        //check stat: +CLC 1,0,3,0,0,"xxxxxxxxxxx",129,""
+                        if (strlen((char*)gsmInput)>=26){
+                          if (!strncmp((char*)gsmInput,GSM_RESP_AT_CLCC,7)){
+                            uint8_t n = gsmInput[11];
+                            if (n>='0' && n<='9'){
+                              gsmMessages[0]->source = n - '0';                              
+                            }
+                          }  
+                        }
+if (intSub) {
+  String s = String(gsmMessages[0]->source);
+  createMessage (intSub, s.c_str(), s.length());
+}                        
+                        break;
+                    }//(gsmMessages[0]->type)
+                  } //gsmMessages.size() > 0
+                  
                 } else if (gsmBusStatus & BUS_WAITING_ACK) {
-                  if ( (!strcmp((char*)gsmInput, STR_GSM_OK)) || (!strcmp((char*)gsmInput, STR_GSM_ERROR)) ) {
+                  if ( (!strcmp((char*)gsmInput, STR_GSM_OK))){
+                    gsmBusStatus = BUS_FREE;
+                    if (gsmMessages.size() > 0) {
+                      switch (gsmMessages[0]->type){
+                        case gsmMessageCallDial:
+                          gsmMessages[0]->type= gsmMessageCallWaitForAnswer;
+                          break;
+                        case gsmMessageCallWaitForAnswer:
+                          //check call status
+                          if (!gsmMessages[0]->source){
+                            // go next
+                            gsmMessages[0]->type = gsmMessageCallPlay00;
+                          }
+                          break;  
+                        default:
+                          gsmMessages[0]->type = gsmMessageDispose;
+                      }//(gsmMessages[0]->type)
+                    } //gsmMessages.size() > 0
+                    
+                    
+                  } else if ( (!strcmp((char*)gsmInput, STR_GSM_ERROR)) || (!strcmp((char*)gsmInput, STR_GSM_BUSY))
+                           || (!strcmp((char*)gsmInput, STR_GSM_NO_ANSWER)) || (!strcmp((char*)gsmInput, STR_GSM_NO_CARRIER)) ) {
                     gsmBusStatus = BUS_FREE;
 if (intSub) {
   createMessage (intSub, "ack\n", strlen("ack\n"));
@@ -2137,7 +2172,7 @@ delay(SERIAL_INTERVAL_TIMER);
                             gsmMessages.back()->type = gsmMessageCallDial;
                             gsmMessages.back()->id = i;
                             gsmMessages.back()->event = serInput[5];
-                            //gsmMessages.back()->extra = extra;
+                            gsmMessages.back()->source = gsmCallDisconnect;
                           }
                         }
                       } //makeCall                       
@@ -2273,9 +2308,6 @@ delay(SERIAL_INTERVAL_TIMER);
       String cmd;
       lngLastGSMCommandSent = m;
 
-if (intSub) {
-  createMessage (intSub, "1\n", strlen("1\n"));
-}
       switch (gsmMessages[0]->type) {
         case gsmMessageSMSCommand:
           cmd = F("AT+CMGS=\"") + String(strGSMMemory[gsmMessages[0]->id]) + F("\"\r\n");
@@ -2367,11 +2399,28 @@ if (intSub) {
 }          
           break;
         case gsmMessageCallDial:
-          cmd = F("ATD") + String(strGSMMemory[gsmMessages[0]->id]) + String(STR_GSM_RETURN);
+          cmd = F("ATD") + String(strGSMMemory[gsmMessages[0]->id]) + F(";\r\n");
           sendATCommand(cmd.c_str(), false);
           gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
           gsmBusStatus = BUS_WAITING_ACK | BUS_WAITING_ECHO;
-          break;   
+          break;
+        case gsmMessageCallWaitForAnswer:
+
+          if ( m > (lngGSMWaitForAnswer + GSM_WAIT_ANSWER_INTERVAL_TIMER)){
+
+            lngGSMWaitForAnswer = m;
+            cmd = F("AT+CLCC\r\n");
+            sendATCommand(cmd.c_str(), false);
+            gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+            gsmBusStatus = BUS_WAITING_EXTENDED_ACK | BUS_WAITING_ACK | BUS_WAITING_ECHO;
+          }
+          break;
+        case gsmMessageCallDisconnect:
+          cmd = F("ATH\r\n");
+          sendATCommand(cmd.c_str(), false);
+          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
+          gsmBusStatus = BUS_WAITING_ACK | BUS_WAITING_ECHO;
+          break;
         default:
          //call
          gsmMessages[0]->type=gsmMessageDispose;

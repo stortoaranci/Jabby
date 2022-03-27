@@ -92,6 +92,7 @@ typedef enum {
 
 
 //GSM
+#define GSM_BAUD_RATE             9600
 #define MAX_GSM_PK_LEN            64
 #define GSM_RETRY                 15
 
@@ -112,26 +113,38 @@ typedef enum {
 } gsmState;
 
 typedef enum {
-  gsmMessageDispose    =0,
-  gsmMessageSMSCommand =1,
-  gsmMessageSMSText    =2,
-  gsmMessageCallDial   =3,
-  gsmMessageCallPlay   =4
+  gsmMessageDispose           =0,
+  gsmMessageSMSCommand        =1,
+  gsmMessageSMSText           =2,
+  gsmMessageCallDial          =11,
+  gsmMessageCallWaitForAnswer =12,
+  gsmMessageCallPlay00        =13,
+  gsmMessageCallDisconnect    =19
 } gsmMessageType;
 
+typedef enum {
+  gsmCallActive               =0,
+  gsmCallHeld                 =1,
+  gsmCallDialing              =2,
+  gsmCallAlerting             =3,
+  gsmCallIncoming             =4,
+  gsmCallWaiting              =5,
+  gsmCallDisconnect           =6
+} gsmCallStat;
 
 //timers
-#define LED_INTERVAL_TIMER            5
-#define SERIAL_INTERVAL_TIMER         10
-#define SERIAL_MAX_INTERVAL_TIMER     500
-#define GSM_INTERVAL_TIMER            230
-#define GSM_MAX_INTERVAL_TIMER        1000
-#define CP_MAX_INTERVAL_TIMER         1000
-#define BUS_MAX_INTERVAL_TIMER        10000
-#define TRIGGER_INTERVAL_TIMER        1000
-#define MQTT_RECONNECT_TIMER          10000
-#define MQTT_LOOP_TIMER               1000
-#define MQTT_PUBLISH_TIMER            60000
+#define LED_INTERVAL_TIMER                5
+#define SERIAL_INTERVAL_TIMER             10
+#define SERIAL_MAX_INTERVAL_TIMER         500
+#define GSM_INTERVAL_TIMER                230
+#define GSM_WAIT_ANSWER_INTERVAL_TIMER    1000
+#define GSM_MAX_INTERVAL_TIMER            1000
+#define CP_MAX_INTERVAL_TIMER             1000
+#define BUS_MAX_INTERVAL_TIMER            10000
+#define TRIGGER_INTERVAL_TIMER            1000
+#define MQTT_RECONNECT_TIMER              10000
+#define MQTT_LOOP_TIMER                   1000
+#define MQTT_PUBLISH_TIMER                60000
 
 
 //TRIGGER
@@ -202,6 +215,7 @@ const PROGMEM char* SER_MSG_61 ="Eng. reset done";
 
 //GSM COMMANDS
 const PROGMEM char* GSM_CMD_AT ="AT\r";
+const PROGMEM char* GSM_RESP_AT_CLCC ="+CLCC: ";
 
 //STRINGS
 const PROGMEM char* STR_0 ="\0";
@@ -222,6 +236,7 @@ const PROGMEM char* STR_GSM_OK ="OK\r\n";
 const PROGMEM char* STR_GSM_BUSY ="BUSY\r\n";
 const PROGMEM char* STR_GSM_NO_DIAL_TONE ="NO DIAL TONE\r\n";
 const PROGMEM char* STR_GSM_NO_CARRIER ="NO CARRIER\r\n";
+const PROGMEM char* STR_GSM_NO_ANSWER ="NO ANSWER\r\n";
 const PROGMEM char* STR_GSM_ERROR ="ERROR\r\n";
 const PROGMEM char* STR_GSM_RETURN ="\r\n";
 
