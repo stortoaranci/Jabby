@@ -7,3 +7,6 @@
 # Customizing
 /Jabby_sketch/data/data.json
 /Jabby_sketch/secrets.h
+
+#OTA cert & key
+/Jabby_sketch/*.key
