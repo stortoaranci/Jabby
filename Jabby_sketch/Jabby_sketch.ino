@@ -8,7 +8,6 @@
 #include <vector>
 #include "config.h"
 #include <unistd.h>
-#include <SoftwareSerial.h>
 #include "secrets.h"
 #ifdef SECURE_MQTT
 #include <WiFiClientSecure.h>
@@ -17,7 +16,6 @@
 //Configuration
 char strMQTTServer[50] =  "\0"; //MQTT_SERVER;
 int intMQTTPort = MQTT_PORT;
-uint8_t intGSMEnable = GSM_ENABLE;
 uint8_t intSetWOAccessCode = SET_WO_ACCESS_CODE;
 char strMQTTUser[50] = "\0"; //MQTT_USER;
 char strMQTTPassword[50] =  "\0"; //MQTT_PASSWORD;
@@ -33,9 +31,6 @@ char strWiFiSSID[50] =  "\0"; //WIFI_SSID;
 char strTCPPassword[50] =  "\0"; //TCP_PASSWORD;
 int intTCPPort = TCP_PORT;
 char strAccessCode[5] = "\0"; //ACCESS_CODE
-char strGSMMemory[GSM_MEMORY_ITEMS][GSM_PHONE_NUMBER_LEN] = {{}};
-uint8_t intGSMPhoneAlert = 0;
-uint8_t intGSMSMSAlert = 0;
 
 //TCP
 struct TCPMessage {
@@ -66,7 +61,6 @@ std::vector<TCPMessage*> outMessages;   // a list of outgoing messages from clie
 int intBroadcast = 0;                   //holds the broadcast for all the slots
 int intSub = 0;                         //holds the terminals that want to receive broadcast messages from server;
 int intSubRS485 = 0;                    //holds the terminals that want to receive RS485 packets from server;
-int intSubGSM = 0;                      //holds the terminals that want to receive GSM packets from server;
 uint8_t intTerminals = 0;               //number of connected clients
 
 //Wi-Fi
@@ -111,30 +105,6 @@ long lngLedBlinkTimer = 0;
 //Time
 long m = 0;
 
-//GSM
-SoftwareSerial ssGSM;
-int intGSMInput = 0;
-gsmState gsmStatus = gsmStateUnk;
-long lngGSMTimeout = 0;
-long lngGSMResetTime = 0;
-uint8_t gsmRetry = GSM_RETRY;
-uint8_t gsmInput[MAX_GSM_PK_LEN];
-uint8_t gsmPacketLen = 0;
-long lngLastGSMUpdateTime = 0;
-uint8_t gsmBusStatus = 0;
-long lngLastGSMCommandSent = 0;
-long lngGSMWaitForAnswer   = 0;
-
-struct gsmMessage {
-  gsmMessageType type = gsmMessageSMSCommand;
-  uint8_t id = 0;
-  uint8_t event = 0;
-  uint8_t source = 0;
-  int crc = 0;
-};
-
-std::vector<gsmMessage*> gsmMessages;   //a list of outgoing commands for GSM
-
 //Control Panel
 uint8_t cpStatus =    0xFF;   //last known CP status
 uint8_t cpUpToDate =  0;      // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
@@ -148,42 +118,6 @@ bool isCPMessage = false;
 
 long lngLastCPUpdateTime = 0; //last update time
 
-
-bool setGSMMemory(int terminal, const char* value) {
-  int len = strlen(value);
-  const char *p = value;
-  char pn[GSM_PHONE_NUMBER_LEN + 1] = "\0";
-
-  if (!setStringVariable(terminal, pn, p, GSM_PHONE_NUMBER_LEN + 1, charAllowKeypad)) {
-    return false;
-  }
-
-  //get index
-  uint8_t index = 0;
-  char *ep;
-  char strIndex[2] = {value[0], '\0'};
-  long result = strtol(strIndex, &ep, 10);
-  if (result >= 0 and result < GSM_MEMORY_ITEMS) {
-    //ok
-    index = (uint8_t)result;
-  } else {
-    //invalid index
-    if (terminal >= 0) {
-      createMessage (terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
-    }
-    return false;
-  }
-  if (len < 2) {
-    //clear position
-    //memcpy(strGSMMemory[index],'\0',GSM_PHONE_NUMBER_LEN);
-    strGSMMemory[index][0] = '\0';
-  } else {
-    p++;
-    strcpy(strGSMMemory[index], p);
-  }
-
-  return true;
-}
 
 bool setStringVariable(int terminal, char* variable, const char* value, size_t size, charRestriction r) {
   size_t l = strlen(value) + 1;
@@ -443,7 +377,6 @@ static void handleDisconnect(void* arg, AsyncClient* client) {
       intTerminals--;
       intSub = intSub & (intBroadcast - slots[i].terminal);
       intSubRS485 = intSubRS485 & (intBroadcast - slots[i].terminal);
-      intSubGSM = intSubGSM & (intBroadcast - slots[i].terminal);
       break;
     }
   }
@@ -562,23 +495,6 @@ String mqttStateToString () {
 
 };
 
-String gsmStatusToString () {
-
-  switch (gsmStatus) {
-    case gsmStateAck: {
-        return STR_ACKNOWLEDGMENT;
-      }
-    case gsmStateRst: {
-        return STR_RESET;
-      }
-    case gsmStateOk: {
-        return STR_OK;
-      }
-    default: {
-        return STR_UNKNOWN;
-      }
-  }
-}
 
 String cpMessageToString() {
   switch (cpMessage) {
@@ -765,36 +681,6 @@ void emptySerialOutput() {
   serMessages.reserve (MAX_SER_MESSAGES);
 }
 
-void emptyGSMOutput() {
-  if (gsmMessages.size() > 0) {
-    for (int i = gsmMessages.size() - 1; i >= 0; i--) {
-      delete gsmMessages[i];
-      gsmMessages.erase(gsmMessages.begin() + i);
-    }
-  }
-  gsmMessages.clear();
-  //gsmMessages.reserve (MAX_GSM_MESSAGES);
-}
-
-void finalizeGSMPacket() {
-  //add termination char
-  gsmInput[gsmPacketLen] = '\0';
-  //sniffing
-  if (intSubGSM) {
-    createMessage (intSubGSM, (char*)gsmInput, gsmPacketLen);
-
-    int len = (gsmPacketLen * 3) + 2;
-    char strHex[len];
-    for (int j = 0; j <= gsmPacketLen; j++) {
-      sprintf(strHex + (j * 3), "%02X ", gsmInput[j]);
-    }
-    strHex[len - 2] = '\n';
-    strHex[len - 1] = 0;
-
-    createMessage(intSubGSM, strHex, len);
-  }
-}
-
 /*
   ----------------------------------------------
   COMMANDS
@@ -818,16 +704,6 @@ bool triggerAlarm (uint8_t t) {
       return true;
   }
   return false;
-}
-
-void resetGSM() {
-
-  lngGSMResetTime = m;
-  //pinMode(GSM_RST_PIN, OUTPUT);
-  digitalWrite(GSM_RST_PIN, HIGH);
-  gsmStatus = gsmStateRst;
-  gsmBusStatus = BUS_FREE;
-  gsmPacketLen = 0;
 }
 
 bool loadConfig() {
@@ -870,7 +746,6 @@ bool loadConfig() {
   }
   strncpy(strMQTTServer, doc[LBL_MQTT_SERVER].isNull() ? MQTT_SERVER : doc[LBL_MQTT_SERVER] , sizeof(strMQTTServer) - 1);
   intMQTTPort = doc[LBL_MQTT_PORT].isNull() ?  MQTT_PORT : doc[LBL_MQTT_PORT];
-  intGSMEnable = doc[LBL_GSM_ENABLE].isNull() ? GSM_ENABLE : doc[LBL_GSM_ENABLE];
   intSetWOAccessCode = doc[LBL_SET_WO_ACCESS_CODE].isNull() ? SET_WO_ACCESS_CODE : doc[LBL_SET_WO_ACCESS_CODE];
   strncpy(strMQTTUser, doc[LBL_MQTT_USER].isNull() ? MQTT_USER : doc[LBL_MQTT_USER] , sizeof(strMQTTUser) - 1);
   strncpy(strMQTTPassword, doc[LBL_MQTT_PASSWORD].isNull() ? MQTT_PASSWORD : doc[LBL_MQTT_PASSWORD], sizeof(strMQTTPassword) - 1);
@@ -887,17 +762,6 @@ bool loadConfig() {
   strncpy(strTCPPassword, doc[LBL_TCP_PASSWORD].isNull() ? TCP_PASSWORD : doc[LBL_TCP_PASSWORD], sizeof(strTCPPassword) - 1);
   intTCPPort = doc[LBL_TCP_PORT].isNull() ? TCP_PORT : doc[LBL_TCP_PORT];
   strncpy(strAccessCode, doc[LBL_ACCESS_CODE].isNull() ? ACCESS_CODE : doc[LBL_ACCESS_CODE], sizeof(strAccessCode) - 1);
-  memset(strGSMMemory, 0, sizeof(strGSMMemory));
-  JsonArray ja = doc[LBL_GSM_MEMORY].as<JsonArray>();
-  int i = 0;
-  for (JsonArray::iterator it = ja.begin(); it != ja.end(); ++it) {
-    if (i < GSM_MEMORY_ITEMS) {
-      strncpy(strGSMMemory[i], it->as<char*>(), sizeof(strGSMMemory[i]) - 1);
-      i++;
-    }
-  }
-  intGSMPhoneAlert = doc[LBL_GSM_PHONE_ALERT].isNull() ? GSM_PHONE_ALERT : doc[LBL_GSM_PHONE_ALERT];
-  intGSMSMSAlert = doc[LBL_GSM_SMS_ALERT].isNull() ? GSM_SMS_ALERT : doc[LBL_GSM_SMS_ALERT];
   return true;
 }
 
@@ -906,7 +770,6 @@ bool saveConfig() {
   StaticJsonDocument<1024> doc;
   doc[LBL_MQTT_SERVER] = strMQTTServer;
   doc[LBL_MQTT_PORT] = intMQTTPort;
-  doc[LBL_GSM_ENABLE] = intGSMEnable;
   doc[LBL_SET_WO_ACCESS_CODE] = intSetWOAccessCode;
   doc[LBL_MQTT_USER] = strMQTTUser;
   doc[LBL_MQTT_PASSWORD] = strMQTTPassword;
@@ -922,12 +785,6 @@ bool saveConfig() {
   doc[LBL_TCP_PASSWORD] = strTCPPassword;
   doc[LBL_TCP_PORT] = intTCPPort;
   doc[LBL_ACCESS_CODE] = strAccessCode;
-  JsonArray gm = doc.createNestedArray(LBL_GSM_MEMORY);
-  for (int i = 0; i < GSM_MEMORY_ITEMS; i++) {
-    gm.add(strGSMMemory[i]);
-  }
-  doc[LBL_GSM_PHONE_ALERT] = intGSMPhoneAlert;
-  doc[LBL_GSM_SMS_ALERT] = intGSMSMSAlert;
 
   File configFile = LittleFS.open(DATA_FILENAME, "w");
   if (!configFile) {
@@ -1003,16 +860,6 @@ int checkUpdate(int slot, bool reboot) {
   return result;
 }
 
-bool sendATCommand (const char* command, bool commit) {
-  size_t r = 0;
-  if (ssGSM) {
-    r = ssGSM.write(command, strlen(command));
-    if (commit) {
-      ssGSM.write(STR_GSM_RETURN);
-    }
-  }
-  return (bool)r;
-}
 
 bool createSequence(int terminal, const char* command) {
   /*
@@ -1116,12 +963,10 @@ void setup() {
 
   pinMode(LED_PIN, OUTPUT);
   pinMode(REDE_PIN, OUTPUT);
-  pinMode(GSM_RST_PIN, OUTPUT);
   pinMode(TRIGGER_PIN, OUTPUT);
 
   digitalWrite(LED_PIN, ledBlink);
   digitalWrite(REDE_PIN, LOW);
-  digitalWrite(GSM_RST_PIN, LOW);
   digitalWrite(LED_PIN, ledBlink);
   analogWrite(TRIGGER_PIN, TRIGGER_NONE);
 
@@ -1249,215 +1094,6 @@ void loop() {
 
   /*
     ----------------------------------------------
-    GSM MANAGEMENT
-    ----------------------------------------------
-  */
-  if (intGSMEnable) {
-    if (!gsmStatus) {
-      if (intSub) {
-        createMessage (intSub, INFO_OPEN_GSM_CONNECTION, strlen(INFO_OPEN_GSM_CONNECTION));
-      }
-      if (ssGSM) {
-        ssGSM.end();
-      }
-      ssGSM.begin(GSM_BAUD_RATE, SWSERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN, false, GSM_BUFFER); //,256);
-      if (!ssGSM) {
-        if (intSub) {
-          createMessage (intSub, ERR_SERIAL_GSM, strlen(ERR_SERIAL_GSM));
-        }
-        gsmStatus = gsmStateErr; //no more try
-      } else {
-        //Start acknowledgment
-        gsmStatus = gsmStateAck;
-        lngGSMTimeout = m;
-        gsmRetry = GSM_RETRY;
-      }
-    }
-  } else if (ssGSM) {
-
-    ssGSM.end();
-    if (intSub) {
-      createMessage (intSub, INFO_CLOSE_GSM_CONNECTION, strlen(INFO_CLOSE_GSM_CONNECTION));
-    }
-    gsmStatus = gsmStateUnk;
-  }
-
-  if ( gsmStatus == gsmStateAck && (m >= (lngGSMTimeout + SERIAL_MAX_INTERVAL_TIMER))) {
-    lngGSMTimeout = m;
-
-    if (!gsmRetry) {
-      //reset device
-      resetGSM();
-    } else {
-      //send AT
-      ssGSM.write(GSM_CMD_AT, strlen(GSM_CMD_AT));
-      gsmRetry--;
-    }
-  }
-
-  // check reset GSM command status
-  //if (digitalRead(GSM_RST_PIN)) {
-  if ((gsmStatus == gsmStateRst) && (m > (lngGSMResetTime + GSM_INTERVAL_TIMER))) {
-    digitalWrite(GSM_RST_PIN, LOW);
-    //delay (15);
-    //pinMode(GSM_RST_PIN, INPUT_PULLUP);
-    gsmStatus = gsmStateUnk;
-  }
-
-  //get output from GSM
-  if (ssGSM) {
-    int intGSMInput = ssGSM.available();
-    if (intGSMInput > 0) {
-      uint8_t buf[intGSMInput];
-      intGSMInput = ssGSM.readBytes(buf, intGSMInput);
-      if (intGSMInput) { //data ok
-        lngLastGSMUpdateTime = m;
-
-        for (int i = 0; i <= intGSMInput - 1; i++) {
-          gsmInput[gsmPacketLen] = buf[i];
-          gsmPacketLen++;
-
-          if (gsmPacketLen >= MAX_GSM_PK_LEN - 1) { //1 char is needed to store '\0'
-            if (intSub) {
-              createMessage (intSub, ERR_GSM_INCOMING_DATA, strlen(ERR_GSM_INCOMING_DATA));
-            }
-            gsmPacketLen = 0;
-          } else if (buf[i] == '\n') { //wait for the end of the packet
-
-            finalizeGSMPacket();
-            //read the incoming packet
-            switch (gsmStatus) {
-
-              case gsmStateAck:
-                if (!strcmp( (char*)gsmInput, STR_GSM_OK)) {
-                  if (intSub) {
-                    createMessage (intSub, INFO_GSM_CONNECTION_OK, strlen(INFO_GSM_CONNECTION_OK));
-                  }
-                  gsmStatus = gsmStateOk; //baud rate sync ok
-                }//is STR_GSM_OK?
-                break;
-
-              case gsmStateOk:
-                if (!strcmp( (char*)gsmInput, STR_GSM_RETURN)) { //check <CR> char  
-                  //nothing to do
-                } else if (gsmBusStatus & BUS_WAITING_ECHO) {
-                  if (gsmMessages.size() > 0) {
-                    
-                    //calculate CRC
-                    int crc = calculateCRC(gsmInput, gsmPacketLen);
-
-                    if ((crc == gsmMessages[0]->crc) ){ // || gsmMessages[0]->crc < 0) { //exclude sent data in sms because it generates a bad crc in case of high baudrate
-                      gsmBusStatus &= BUS_NOT_ECHO;
-if (intSub) {
-  createMessage (intSub, "del echo\n", strlen("del echo\n"));
-}                      
-                    } else {
-                      gsmMessages[0]->type = ((gsmMessages[0]->type >= gsmMessageCallDial) && (gsmMessages[0]->type < gsmMessageCallDisconnect)) ? gsmMessageCallDisconnect: gsmMessageDispose;
-                      gsmBusStatus = BUS_FREE;
-if (intSub) {
-  createMessage (intSub, "dis\n", strlen("dis\n"));
-}
-                      if (intSub) {
-                        createMessage (intSub, ERR_GSM_INCOMING_DATA, strlen(ERR_GSM_INCOMING_DATA));
-                      }
-                    }// crc
-                    //gsmBusStatus |= BUS_WAITING_ACK;
-                  } //(gsmMessages.size() > 0)
-                } else if (gsmBusStatus & BUS_WAITING_EXTENDED_ACK) { //wait for "+...." response
-if (intSub) {
-  createMessage (intSub, "no_ext\n", strlen("no_ext\n"));
-}
-                  gsmBusStatus &= BUS_NOT_EXTENDED_ACK;
-
-                  if (gsmMessages.size() > 0) {
-                    switch (gsmMessages[0]->type){
-                      case gsmMessageCallWaitForAnswer:
-                        //check stat: +CLC 1,0,3,0,0,"xxxxxxxxxxx",129,""
-                        if (strlen((char*)gsmInput)>=26){
-                          if (!strncmp((char*)gsmInput,GSM_RESP_AT_CLCC,7)){
-                            uint8_t n = gsmInput[11];
-                            if (n>='0' && n<='9'){
-                              gsmMessages[0]->source = n - '0';                              
-                            }
-                          }  
-                        }
-if (intSub) {
-  String s = String(gsmMessages[0]->source);
-  createMessage (intSub, s.c_str(), s.length());
-}                        
-                        break;
-                    }//(gsmMessages[0]->type)
-                  } //gsmMessages.size() > 0
-                  
-                } else if (gsmBusStatus & BUS_WAITING_ACK) {
-                  if ( (!strcmp((char*)gsmInput, STR_GSM_OK))){
-                    gsmBusStatus = BUS_FREE;
-                    if (gsmMessages.size() > 0) {
-                      switch (gsmMessages[0]->type){
-                        case gsmMessageCallDial:
-                          gsmMessages[0]->type= gsmMessageCallWaitForAnswer;
-                          break;
-                        case gsmMessageCallWaitForAnswer:
-                          //check call status
-                          if (!gsmMessages[0]->source){
-                            // go next
-                            gsmMessages[0]->type = gsmMessageCallPlay00;
-                          }
-                          break;  
-                        default:
-                          gsmMessages[0]->type = gsmMessageDispose;
-                      }//(gsmMessages[0]->type)
-                    } //gsmMessages.size() > 0
-                    
-                    
-                  } else if ( (!strcmp((char*)gsmInput, STR_GSM_ERROR)) || (!strcmp((char*)gsmInput, STR_GSM_BUSY))
-                           || (!strcmp((char*)gsmInput, STR_GSM_NO_ANSWER)) || (!strcmp((char*)gsmInput, STR_GSM_NO_CARRIER)) ) {
-                    gsmBusStatus = BUS_FREE;
-if (intSub) {
-  createMessage (intSub, "ack\n", strlen("ack\n"));
-}                    
-                    if (gsmMessages.size() > 0) {
-                      gsmMessages[0]->type = gsmMessageDispose;
-                    }
-                    if (intSub && (!strcmp((char*)gsmInput, STR_GSM_ERROR))) {
-                      createMessage (intSub, ERR_GSM_REJECTED, strlen(ERR_GSM_REJECTED));
-                    }
-                  } else {
-                    if (intSub) {
-                      createMessage (intSub, ERR_GSM_UNKNOWN, strlen(ERR_GSM_UNKNOWN));
-                    }
-                  }
-                }
-                break;
-
-            }
-            gsmPacketLen = 0;
-          } else if (gsmStatus == gsmStateOk && ((gsmBusStatus & BUS_WAITING_PROMPT) == BUS_WAITING_PROMPT) && (buf[i] == ' ') ) { //wait for promt "> "
-            if (gsmPacketLen = 2 && gsmInput[0] == '>') {
-if (intSub) {
-  createMessage (intSub, "prompt\n", strlen("prompt\n"));
-}
-              finalizeGSMPacket();
-
-              //ready
-              if (gsmMessages.size() > 0) {
-                gsmMessages[0]->type = gsmMessageSMSText;
-if (intSub) {
-  createMessage (intSub, "txt\n", strlen("txt\n"));
-}
-              }
-              gsmBusStatus = BUS_FREE;
-              gsmPacketLen = 0;
-            }
-          } // else (gsmPacketLen >= MAX_GSM_PK_LEN - 1)
-        } //for i
-
-      }
-    }
-  }
-
-  /*
-    ----------------------------------------------
     RS485 SEND SEQUENCE
     ----------------------------------------------
   */
@@ -1498,6 +1134,7 @@ delay(SERIAL_INTERVAL_TIMER);
     } //(serMessages[0]->pointer < serMessages[0]->length)
   } //serMessages.size() > 0
 
+ 
   /*
     ----------------------------------------------
     TCP MANAGEMENT
@@ -1586,8 +1223,8 @@ delay(SERIAL_INTERVAL_TIMER);
               } else if (!strcmp(ptrParameter, "t")) {
                 blCheckValue = false;
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
-              } else if (!strcmp(ptrParameter, "g") || !strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "k")
-                         || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m") || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r")
+              } else if (!strcmp(ptrParameter, "h") || !strcmp(ptrParameter, "i") || !strcmp(ptrParameter, "l") || !strcmp(ptrParameter, "m")
+                         || !strcmp(ptrParameter, "S") || !strcmp(ptrParameter, "q") || !strcmp(ptrParameter, "r")
                          || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "u")) {
                 strcpy(slots[inMessages[i]->terminal].command, ptrParameter);
               } else {
@@ -1606,7 +1243,6 @@ delay(SERIAL_INTERVAL_TIMER);
                 //check variable
                 if (!(strcmp(ptrParameter, LBL_MQTT_USER)) || !(strcmp(ptrParameter, LBL_MQTT_PASSWORD)) ||
                     !(strcmp(ptrParameter, LBL_MQTT_SERVER)) || !(strcmp(ptrParameter, LBL_MQTT_PORT)) ||
-                    !(strcmp(ptrParameter, LBL_GSM_ENABLE)) || !(strcmp(ptrParameter, LBL_GSM_MEMORY)) || !(strcmp(ptrParameter, LBL_GSM_PHONE_ALERT)) || !(strcmp(ptrParameter, LBL_GSM_SMS_ALERT)) ||
                     !(strcmp(ptrParameter, LBL_SET_WO_ACCESS_CODE)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_SERVER)) || !(strcmp(ptrParameter, LBL_OTA_WEB_PORT)) ||
                     !(strcmp(ptrParameter, LBL_OTA_WEB_PAGE)) || !(strcmp(ptrParameter, LBL_TCP_PASSWORD)) || !(strcmp(ptrParameter, LBL_ACCESS_CODE)) ||
@@ -1621,10 +1257,11 @@ delay(SERIAL_INTERVAL_TIMER);
               } else if (!strcmp(slots[inMessages[i]->terminal].command, "e")) { //check 'e' command
 
                 //check commands that don't need for a value
-                if (!strcmp(ptrParameter, "x") || !strcmp(ptrParameter, "y")) {
+                /*if (!strcmp(ptrParameter, "x") || !strcmp(ptrParameter, "y")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                   blCheckValue = true;
-                } else if (!strcmp(ptrParameter, "a") || !strcmp(ptrParameter, "at") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "rp")|| !strcmp(ptrParameter, "sp")) {
+                } else */
+                if (!strcmp(ptrParameter, "a") || !strcmp(ptrParameter, "s") || !strcmp(ptrParameter, "rp")|| !strcmp(ptrParameter, "sp")) {
                   strcpy(slots[inMessages[i]->terminal].parameter, ptrParameter);
                 } else {
                   //malformed command
@@ -1682,22 +1319,12 @@ delay(SERIAL_INTERVAL_TIMER);
                   blCheckCommand = setAlarm(slots[inMessages[i]->terminal].terminal, (armCommand)result);
                   //no need to send error message
                 }
-              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, "at")) {
-                blCheckCommand = sendATCommand(slots[inMessages[i]->terminal].value, true);
-                if (!blCheckCommand) {
-                  createMessage (slots[inMessages[i]->terminal].terminal, ERR_WRONG_VALUE, strlen(ERR_WRONG_VALUE));
-                }
               }
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "h")) {
               loadHelp (inMessages[i]->terminal);
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "i")) {
               //info esp
-              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGE:\t\t\t\"") + String(intGSMEnable) +
-                               F("\"\nGPA:\t\t\t\"") + String(intGSMPhoneAlert) + F("\"\nGSA:\t\t\t\"") + String(intGSMSMSAlert);
-
-              for (int m = 0; m < GSM_MEMORY_ITEMS; m++) {
-                strInfo += F("\"\nGM[") + String(m) + F("]:\t\t\t\"") + String(strGSMMemory[m]);
-              }
+              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGE:\t\t\t\"");
               strInfo += F("\"\nAC:\t\t\t\"") + String(strAccessCode) +
                          F("\"\nSWOAC:\t\t\t\"") + String(intSetWOAccessCode) +
                          F("\"\nMS:\t\t\t\"") + String(strMQTTServer) + F("\"\nMP:\t\t\t\"") + String(intMQTTPort) +
@@ -1707,17 +1334,12 @@ delay(SERIAL_INTERVAL_TIMER);
                          F("\"\nWS:\t\t\t\"") + String(strWiFiSSID) + F("\"\nWPW:\t\t\t\"") + String(strWiFiPassword) + F("\"\n");
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
-
               //WiFi
               strInfo = F("\nWiFi:\nMAC:\t\t\t") + String(WiFi.macAddress()) + F("\nIP:\t\t\t") + WiFi.localIP().toString() + F("\nTerminals:\t\t") + String(intTerminals) + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
               //MQTT
               strInfo = F("\nMQTT:\nName:\t\t\t") + String(WiFi.hostname()) + F("\nStatus\t\t\t") + String(mqttClient.connected()) + STR_N;
-              createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-
-              //GSM
-              strInfo = F("\nGSM:\nStatus:\t\t\t") + gsmStatusToString() + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
 
               //Alarm Status
@@ -1732,16 +1354,6 @@ delay(SERIAL_INTERVAL_TIMER);
               strInfo = F("\nDetails:\nDevice:\t\t\t") + String(cpDevice) + F("\nMessage:\t\t") + cpMessageToString() + F("\nWarning:\t\t") + cpWarningToString() + F("\nBattery:\t\t") + cpBatteryToString() +
                         F("\nA:\t\t\t") + cpAToString() + F("\nB:\t\t\t") + cpBToString() + F("\nC:\t\t\t") + cpCToString() + STR_N;
               createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-
-              strInfo = F("\ngsm:\nbus:\t\t\t") + String(gsmBusStatus) + F("\nlen:\t\t") + String(gsmPacketLen) + F("\ntype:\t\t") + String(gsmMessages.size() ? gsmMessages[0]->type : -1)
-                        + F("\nchar:\t\t") + String((int)gsmInput[0]) +
-                        + F("\nqueue:\t\t") + String(gsmMessages.size()) +  STR_N;
-              createMessage(slots[inMessages[i]->terminal].terminal, strInfo.c_str(), strlen(strInfo.c_str()));
-
-
-            } else if (!strcmp(slots[inMessages[i]->terminal].command, "k")) {
-              resetGSM();
-              //blCheckCommand = false;
 
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "l")) {
               if (!loadConfig()) {
@@ -1758,16 +1370,6 @@ delay(SERIAL_INTERVAL_TIMER);
                 intSub += slots[inMessages[i]->terminal].terminal;
               }
               String s = STR_SUBSCRIPTION + String(intSub & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
-              createMessage (slots[inMessages[i]->terminal].terminal, s.c_str(), s.length());
-            } else if (!strcmp(slots[inMessages[i]->terminal].command, "g")) {
-              if (intSubGSM & slots[inMessages[i]->terminal].terminal) {
-                //disable
-                intSubGSM = intSubGSM & (intBroadcast - slots[inMessages[i]->terminal].terminal);
-              } else {
-                //enable
-                intSubGSM += slots[inMessages[i]->terminal].terminal;
-              }
-              String s = STR_SUBSCRIPTION + String(intSubGSM & slots[inMessages[i]->terminal].terminal ? STR_ON : STR_OFF) + STR_N;
               createMessage (slots[inMessages[i]->terminal].terminal, s.c_str(), s.length());
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "S")) {
               if (intSubRS485 & slots[inMessages[i]->terminal].terminal) {
@@ -1827,18 +1429,6 @@ delay(SERIAL_INTERVAL_TIMER);
                   blCheckCommand = false;
                 }
 
-              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_ENABLE)) {
-
-                char *p;
-                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
-
-                if (result >= 0 and result <= 1) {
-                  blCheckCommand = true;
-                  intGSMEnable = (int)result;
-
-                } else {
-                  blCheckCommand = false;
-                }
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_SET_WO_ACCESS_CODE)) {
 
                 char *p;
@@ -1880,28 +1470,7 @@ delay(SERIAL_INTERVAL_TIMER);
                 } else {
                   blCheckCommand = false;
                 }
-              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_PHONE_ALERT)) {
 
-                char *p;
-                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
-                if (result >= 0 and result <= 255) {
-                  blCheckCommand = true;
-                  intGSMPhoneAlert = (int)result;
-                } else {
-                  blCheckCommand = false;
-                }
-              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_SMS_ALERT)) {
-
-                char *p;
-                long result = strtol(slots[inMessages[i]->terminal].value, &p, 10);
-                if (result >= 0 and result <= 255) {
-                  blCheckCommand = true;
-                  intGSMSMSAlert = (int)result;
-                } else {
-                  blCheckCommand = false;
-                }
-              } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_GSM_MEMORY)) {
-                blCheckCommand = (setGSMMemory(slots[inMessages[i]->terminal].terminal, slots[inMessages[i]->terminal].value));
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_ACCESS_CODE)) {
                 blCheckCommand = (setStringVariable(slots[inMessages[i]->terminal].terminal, strAccessCode, slots[inMessages[i]->terminal].value, sizeof(strAccessCode), charAllowDigits));
               } else if (!strcmp(slots[inMessages[i]->terminal].parameter, LBL_WIFI_PASSWORD)) {
@@ -2125,63 +1694,6 @@ delay(SERIAL_INTERVAL_TIMER);
                        43 alarm end                     (source = CP           )
                        04 panic alarm                   (source = device       )
                     */
-                    if (intGSMEnable && (intGSMSMSAlert || intGSMPhoneAlert)){ //only if enabled
-                      uint8_t data = 0;   
-                      switch (serInput[5]){
-                        case 8: case 12: case 13: case 26: case 27: case 30: case 33:
-                          //set
-                          data = GSM_ALERT_SET;
-                          break;
-                        case 9: case 28: case 29: case 31:
-                          data = GSM_ALERT_UNSET;
-                          break;
-                        case 7: case 14: case 15: case 17: case 20: case 24: case 89:
-                         //fault
-                         data = GSM_ALERT_FAULT;
-                         break;
-                        case 16: case 21: case 81:
-                         //recovery
-                         data = GSM_ALERT_RECOVERY;
-                         break;
-                        case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 23: case 90:
-                         //trigger
-                         data = GSM_ALERT_TRIGGER;
-                         break;
-                        case 64: case 65: case 66: case 67: case 78: case 79: case 80: case 82: case 85: case 86: case 91: case 92: case 93:case 94: case 95: case 96: case 97:
-                        //info
-                        data = GSM_ALERT_INFO;
-                        break;
-                          
-                      } //serInput[5]
-                      bool sendSMS = (intGSMSMSAlert & data);
-                      bool makeCall = (intGSMPhoneAlert & data);
-
-                      if (sendSMS) {
-                        //send sms
-                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
-                          if (strlen(strGSMMemory[i])) {
-                            gsmMessages.push_back (new gsmMessage);
-                            gsmMessages.back()->type = gsmMessageSMSCommand;
-                            gsmMessages.back()->id = i;
-                            gsmMessages.back()->event = serInput[5];
-                            gsmMessages.back()->source = serInput[6];
-                          }
-                        }
-                      } //sendSMS
-
-                      if (makeCall) {
-                        //call phone numbers
-                        for (uint8_t i = 0; i < GSM_MEMORY_ITEMS; i++) {
-                          if (strlen(strGSMMemory[i])) {
-                            gsmMessages.push_back (new gsmMessage);
-                            gsmMessages.back()->type = gsmMessageCallDial;
-                            gsmMessages.back()->id = i;
-                            gsmMessages.back()->event = serInput[5];
-                            gsmMessages.back()->source = gsmCallDisconnect;
-                          }
-                        }
-                      } //makeCall                       
-                    }
                     break;
                   case 0xE4: case 0xE7: //other events
                     break;
@@ -2295,145 +1807,6 @@ delay(SERIAL_INTERVAL_TIMER);
 
   } //intSerialInput > 0
 
-  /*
-    ----------------------------------------------
-    GSM SEND COMMAND
-    ----------------------------------------------
-  */
-  if (gsmMessages.size() > 0) {
-    if (!gsmMessages[0]->type) {
-      //remove the message from the queue
-      delete gsmMessages[0];
-      gsmMessages.erase(gsmMessages.begin());
-      if (!gsmMessages.size()) {
-        //free memory
-        emptyGSMOutput();
-      }
-    } else if (!gsmBusStatus && !gsmPacketLen) {
-      String cmd;
-      lngLastGSMCommandSent = m;
-
-      switch (gsmMessages[0]->type) {
-        case gsmMessageSMSCommand:
-          cmd = F("AT+CMGS=\"") + String(strGSMMemory[gsmMessages[0]->id]) + F("\"\r\n");
-          sendATCommand(cmd.c_str(), false);
-          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
-          gsmBusStatus = BUS_WAITING_PROMPT | BUS_WAITING_ECHO;
-          break;
-
-        case gsmMessageSMSText:
-if (intSub) {
-  createMessage (intSub, "2\n", strlen("1\n"));
-}
-          cmd = String(VERSION) + F(": ");
-          switch (gsmMessages[0]->event) {
-            case 0:
-              cmd += STR_ARMED_AFTER_POWER_UP;
-              break;
-            case 1:
-              cmd += String(SER_MSG_01) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 2:
-              cmd += String(SER_MSG_02) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 3:
-              cmd += String(SER_MSG_03) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 4:
-              cmd += String(SER_MSG_04) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 5:
-              cmd += String(SER_MSG_05) + String(STR_DEVICE) + String(gsmMessages[0]->source);
-              break;
-            case 6: cmd += SER_MSG_06; break;
-            case 7: cmd += SER_MSG_07; break;
-            case 8: cmd += SER_MSG_08; break;
-            case 9: cmd += SER_MSG_09; break;
-            case 12: cmd += SER_MSG_0C; break;
-            case 13: cmd += SER_MSG_0D; break;
-            case 14: cmd += SER_MSG_0E; break;
-            case 15: cmd += SER_MSG_0F; break;
-            case 16: cmd += SER_MSG_10; break;
-            case 17: cmd += SER_MSG_11; break;
-            case 20: cmd += SER_MSG_14; break;
-            case 21: cmd += SER_MSG_15; break;              
-            case 23: cmd += SER_MSG_17; break; 
-            case 24: cmd += SER_MSG_18; break; 
-            case 26: cmd += SER_MSG_1A; break;
-            case 27: cmd += SER_MSG_1B; break;
-            case 28: cmd += SER_MSG_1C; break;
-            case 29: cmd += SER_MSG_1D; break;
-            case 30: cmd += SER_MSG_1E; break;
-            case 31: cmd += SER_MSG_1F; break;
-            case 33: cmd += SER_MSG_21; break;
-            case 64: cmd += SER_MSG_40; break;  
-            case 65:
-              cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
-              cmd += STR_MODE_ENTERED;
-              break;
-            case 66:
-              cmd += (gsmMessages[0]->source == 0x40) ? STR_MODE_MASTER : STR_MODE_SERVICE;
-              cmd += STR_MODE_EXIT;
-              break;
-            case 67: cmd += SER_MSG_43; break;
-            case 78: cmd += SER_MSG_4E; break;
-            case 79: cmd += SER_MSG_4F; break;
-            case 80: cmd += SER_MSG_50; break;
-            case 81: cmd += SER_MSG_51; break;
-            case 82: cmd += SER_MSG_52; break;
-            case 85: cmd += SER_MSG_55; break;
-            case 86: cmd += SER_MSG_56; break;
-            case 89: cmd += SER_MSG_59; break;
-            case 90: cmd += SER_MSG_5A; break;
-            case 91: cmd += SER_MSG_5B; break;
-            case 92: cmd += SER_MSG_5C; break;
-            case 93: cmd += SER_MSG_5D; break;
-            case 94: cmd += SER_MSG_5E; break;
-            case 95: cmd += SER_MSG_5F; break;
-            case 96: cmd += SER_MSG_60; break;
-            case 97: cmd += SER_MSG_61; break;
-          }
-          //insert current datetime (tbd)
-          cmd += F("\x1A");
-          sendATCommand(cmd.c_str(), false);
-          cmd+=STR_GSM_RETURN;
-          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
-          gsmBusStatus = BUS_WAITING_EXTENDED_ACK | BUS_WAITING_ACK | BUS_WAITING_ECHO;
-if (intSub) {
-  createMessage (intSub, "3\n", strlen("1\n"));
-}          
-          break;
-        case gsmMessageCallDial:
-          cmd = F("ATD") + String(strGSMMemory[gsmMessages[0]->id]) + F(";\r\n");
-          sendATCommand(cmd.c_str(), false);
-          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
-          gsmBusStatus = BUS_WAITING_ACK | BUS_WAITING_ECHO;
-          break;
-        case gsmMessageCallWaitForAnswer:
-
-          if ( m > (lngGSMWaitForAnswer + GSM_WAIT_ANSWER_INTERVAL_TIMER)){
-
-            lngGSMWaitForAnswer = m;
-            cmd = F("AT+CLCC\r\n");
-            sendATCommand(cmd.c_str(), false);
-            gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
-            gsmBusStatus = BUS_WAITING_EXTENDED_ACK | BUS_WAITING_ACK | BUS_WAITING_ECHO;
-          }
-          break;
-        case gsmMessageCallDisconnect:
-          cmd = F("ATH\r\n");
-          sendATCommand(cmd.c_str(), false);
-          gsmMessages[0]->crc = calculateCRC((uint8_t *)cmd.c_str(), cmd.length());
-          gsmBusStatus = BUS_WAITING_ACK | BUS_WAITING_ECHO;
-          break;
-        default:
-         //call
-         gsmMessages[0]->type=gsmMessageDispose;
-      }
-
-    } //!gsmBusStatus && !gsmPacketLen
-
-  } //gsmMessages.size() > 0
 
   /*
     ----------------------------------------------
@@ -2468,19 +1841,7 @@ if (intSub) {
     lngLastSerialUpdateTime = m;
   }
 
-  /*
-    if ( gsmBusStatus && (m >= (lngLastGSMCommandSent + GSM_MAX_INTERVAL_TIMER)) ) {
-      //gsm command expiration
-      if (intSub) {
-        createMessage (intSub, ERR_GSM_TIMEOUT, strlen(ERR_GSM_TIMEOUT));
-      }
-      // free memory
-      emptyGSMOutput();
-      resetGSM();
-      lngLastGSMCommandSent = m;
-      //gsmBusStatus= BUS_FREE;
-    }
-  */
+
   //test up-to-date
   if (m >= (lngLastCPUpdateTime + CP_MAX_INTERVAL_TIMER)) {
     //data expired

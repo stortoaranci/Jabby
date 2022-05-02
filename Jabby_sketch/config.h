@@ -6,9 +6,6 @@
 #define LED_PIN D4
 #define REDE_PIN D7
 #define TRIGGER_PIN D5
-#define GSM_RST_PIN D6
-#define GSM_RX_PIN D2 //G
-#define GSM_TX_PIN D1 //Y
 
 const PROGMEM char* VERSION = "Jabby_0.2.8";
 const PROGMEM char* NAME ="Jabby";
@@ -16,8 +13,6 @@ const PROGMEM char* NAME ="Jabby";
 //file system
 const PROGMEM char* DATA_FILENAME = "/data.json";
 const PROGMEM char* HELP_FILENAME = "/help.txt";
-const PROGMEM char* AMR_00_FILENAME = "/0.amr";
-
 
 #define MAX_TCP_CONNECTIONS   3
 #define MAX_TCP_MESSAGES      5
@@ -25,13 +20,7 @@ const PROGMEM char* AMR_00_FILENAME = "/0.amr";
 #define MAX_TCP_AUTH_ATTEMPTS 3
 
 //default values
-#define GSM_ENABLE            1
 #define SET_WO_ACCESS_CODE    1
-#define GSM_PHONE_ALERT       0
-#define GSM_SMS_ALERT         0
-#define GSM_MEMORY_ITEMS      5
-#define GSM_PHONE_NUMBER_LEN  21
-
 
 //SERIAL
 #define MAX_SERIAL_PK_LEN     24
@@ -66,9 +55,6 @@ const PROGMEM char* AMR_00_FILENAME = "/0.amr";
 #define SERIAL_SEQ_EOF 0xFF
 
 //const PROGMEM uint8_t SER_MSG_TAMPER_KEYPAD[] = {0xB2, SERIAL_PK_END};
-//const PROGMEM uint8_t SER_MSG_GSM[] = {0xE5, 0x11, 0x21, 0x11, 0x05, 0x71, SERIAL_PK_END};
-//const PROGMEM uint8_t SER_MSG_GSM_ECHO[] = {0xB7, SERIAL_PK_END};
-//const PROGMEM uint8_t SER_MSG_GSM_ECHO_2[] = {0xB8, SERIAL_PK_END};
 
 //CRC
 #define CRC_POLY 0xA3
@@ -90,56 +76,10 @@ typedef enum {
   serMessageCommand      =1
 } serMessageType;
 
-
-//GSM
-#define GSM_BAUD_RATE             38400
-#define GSM_BUFFER                16
-#define MAX_GSM_PK_LEN            64
-#define GSM_RETRY                 15
-
-#define GSM_ALERT_SET             1
-#define GSM_ALERT_UNSET           2
-#define GSM_ALERT_TRIGGER         4
-#define GSM_ALERT_FAULT           8
-#define GSM_ALERT_RECOVERY       16
-#define GSM_ALERT_INFO           32
-//#define GSM_ALERT_INFO            64
-
-typedef enum {
-  gsmStateUnk      =0,
-  gsmStateAck      =1,
-  gsmStateRst      =2,
-  gsmStateOk       =3,
-  gsmStateErr      =4
-} gsmState;
-
-typedef enum {
-  gsmMessageDispose           =0,
-  gsmMessageSMSCommand        =1,
-  gsmMessageSMSText           =2,
-  gsmMessageCallDial          =11,
-  gsmMessageCallWaitForAnswer =12,
-  gsmMessageCallPlay00        =13,
-  gsmMessageCallDisconnect    =19
-} gsmMessageType;
-
-typedef enum {
-  gsmCallActive               =0,
-  gsmCallHeld                 =1,
-  gsmCallDialing              =2,
-  gsmCallAlerting             =3,
-  gsmCallIncoming             =4,
-  gsmCallWaiting              =5,
-  gsmCallDisconnect           =6
-} gsmCallStat;
-
 //timers
 #define LED_INTERVAL_TIMER                5
 #define SERIAL_INTERVAL_TIMER             10
 #define SERIAL_MAX_INTERVAL_TIMER         500
-#define GSM_INTERVAL_TIMER                230
-#define GSM_WAIT_ANSWER_INTERVAL_TIMER    2000
-#define GSM_MAX_INTERVAL_TIMER            3000
 #define CP_MAX_INTERVAL_TIMER             1000
 #define BUS_MAX_INTERVAL_TIMER            10000
 #define TRIGGER_INTERVAL_TIMER            1000
@@ -214,10 +154,6 @@ const PROGMEM char* SER_MSG_5F ="PgY off";
 const PROGMEM char* SER_MSG_60 ="Eng. reset req.";
 const PROGMEM char* SER_MSG_61 ="Eng. reset done";
 
-//GSM COMMANDS
-const PROGMEM char* GSM_CMD_AT ="AT\r";
-const PROGMEM char* GSM_RESP_AT_CLCC ="+CLCC: ";
-
 //STRINGS
 const PROGMEM char* STR_0 ="\0";
 const PROGMEM char* STR_N ="\n";
@@ -232,14 +168,6 @@ const PROGMEM char* STR_DEVICE =" device: ";
 const PROGMEM char* STR_MODE_ENTERED =" mode entered";
 const PROGMEM char* STR_MODE_EXIT =" mode exit";
 const PROGMEM char* STR_ARMED_AFTER_POWER_UP ="Alarm after powering up";
-
-const PROGMEM char* STR_GSM_OK ="OK\r\n";
-const PROGMEM char* STR_GSM_BUSY ="BUSY\r\n";
-const PROGMEM char* STR_GSM_NO_DIAL_TONE ="NO DIAL TONE\r\n";
-const PROGMEM char* STR_GSM_NO_CARRIER ="NO CARRIER\r\n";
-const PROGMEM char* STR_GSM_NO_ANSWER ="NO ANSWER\r\n";
-const PROGMEM char* STR_GSM_ERROR ="ERROR\r\n";
-const PROGMEM char* STR_GSM_RETURN ="\r\n";
 
 const PROGMEM char* STR_UNKNOWN ="Unknown";
 const PROGMEM char* STR_RESET ="Reset";
@@ -312,7 +240,7 @@ const PROGMEM char* ERR_LOAD_CONFIG ="[E107]-Unable to load config file.\n";
 const PROGMEM char* ERR_SAVE_CONFIG ="[E108]-Unable to save config file.\n";
 const PROGMEM char* ERR_VALUE_TOO_LARGE ="[E109]-Value too large.\n";
 const PROGMEM char* ERR_WRONG_VALUE ="[E110]-Wrong value.\n";
-const PROGMEM char* ERR_GSM_INIT ="[E111]-Unable to init GSM.\n";
+//const PROGMEM char* ERR_GSM_INIT ="[E111]-Unable to init GSM.\n";
 //const PROGMEM char* ERR_DEVICE_BUSY ="[E112]-Unable to execute command. The device is busy.\n";
 const PROGMEM char* ERR_AUTH ="[E113]-Access Denied.\n";
 const PROGMEM char* ERR_CHECK_UPDATE ="[E114]-Unable to update.\n";
@@ -322,17 +250,17 @@ const PROGMEM char* ERR_SEQUENCE_CANCELLED ="[E117]-Sequence aborted.\n";
 const PROGMEM char* ERR_UNKNOWN_DATA ="[E118]-Unknown data.\n";
 const PROGMEM char* ERR_TRIGGER ="[E118]-Unable to trigger alarm.\n";
 const PROGMEM char* ERR_SERIAL_GSM ="[E119]-Unable to open GSM serial port.\n";
-const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in GSM incoming data.\n";
-const PROGMEM char* ERR_GSM_TIMEOUT ="[E121]-Timeout in GSM communication.\n";
-const PROGMEM char* ERR_GSM_REJECTED ="[E122]-GSM command rejected.\n";
-const PROGMEM char* ERR_GSM_UNKNOWN ="[E123]-GSM unknown response.\n";
+//const PROGMEM char* ERR_GSM_INCOMING_DATA ="[E120]-Error in GSM incoming data.\n";
+//const PROGMEM char* ERR_GSM_TIMEOUT ="[E121]-Timeout in GSM communication.\n";
+//const PROGMEM char* ERR_GSM_REJECTED ="[E122]-GSM command rejected.\n";
+//const PROGMEM char* ERR_GSM_UNKNOWN ="[E123]-GSM unknown response.\n";
 const PROGMEM char* WRN_HTTP_UPDATE_NO_UPDATES ="[W201]-No update available.\n";
 const PROGMEM char* INFO_COMMAND_OK ="[I0]-Done.\n";
 const PROGMEM char* INFO_HTTP_UPDATE_OK ="[I1]-Update done (reboot needed).\n";
 const PROGMEM char* INFO_LOGIN_OK ="[I2]-Welcome!\n";
 const PROGMEM char* INFO_OPEN_GSM_CONNECTION ="[I3]-Open GSM connection.\n";
 const PROGMEM char* INFO_CLOSE_GSM_CONNECTION ="[I4]-Close GSM connection.\n";
-const PROGMEM char* INFO_GSM_CONNECTION_OK ="[I5]-GSM connection OK.\n";
+//const PROGMEM char* INFO_GSM_CONNECTION_OK ="[I5]-GSM connection OK.\n";
 
 //LABELS
 const PROGMEM char* LBL_MQTT_SERVER ="MS";
@@ -347,9 +275,5 @@ const PROGMEM char* LBL_TCP_PASSWORD ="TPW";
 const PROGMEM char* LBL_TCP_PORT ="TP";
 const PROGMEM char* LBL_WIFI_PASSWORD ="WPW";
 const PROGMEM char* LBL_WIFI_SSID ="WS";
-const PROGMEM char* LBL_GSM_ENABLE ="GE";
-const PROGMEM char* LBL_GSM_MEMORY ="GM";
-const PROGMEM char* LBL_GSM_PHONE_ALERT ="GPA";
-const PROGMEM char* LBL_GSM_SMS_ALERT ="GSA";
 const PROGMEM char* LBL_ACCESS_CODE ="AC";
 const PROGMEM char* LBL_SET_WO_ACCESS_CODE ="SWOAC";
