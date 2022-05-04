@@ -7,7 +7,7 @@
 #define REDE_PIN D7
 #define TRIGGER_PIN D5
 
-const PROGMEM char* VERSION = "Jabby_0.2.8";
+const PROGMEM char* VERSION = "Jabby_0.2.9";
 const PROGMEM char* NAME ="Jabby";
 
 //file system

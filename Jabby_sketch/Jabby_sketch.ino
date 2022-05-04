@@ -1116,8 +1116,7 @@ void loop() {
 
             Serial.write(serMessages[0]->data[serMessages[0]->pointer]);
             serMessages[0]->pointer++;
-delay(SERIAL_INTERVAL_TIMER);
-           
+            delay(SERIAL_INTERVAL_TIMER);          
           }//while
         }
         delay(3); // this delay is needed to avoid feedback in incoming traffic (investigation needed)
@@ -1324,8 +1323,8 @@ delay(SERIAL_INTERVAL_TIMER);
               loadHelp (inMessages[i]->terminal);
             } else if (!strcmp(slots[inMessages[i]->terminal].command, "i")) {
               //info esp
-              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION) + F("\n\nVariables:\nGE:\t\t\t\"");
-              strInfo += F("\"\nAC:\t\t\t\"") + String(strAccessCode) +
+              String strInfo = F("Chip:\nFree heap:\t\t") + String(ESP.getFreeHeap()) + F("\nVersion:\t\t") + String(VERSION);
+              strInfo += F("\"\n\nVariables:\nAC:\t\t\t\"") + String(strAccessCode) +
                          F("\"\nSWOAC:\t\t\t\"") + String(intSetWOAccessCode) +
                          F("\"\nMS:\t\t\t\"") + String(strMQTTServer) + F("\"\nMP:\t\t\t\"") + String(intMQTTPort) +
                          F("\"\nMU:\t\t\t\"") + String(strMQTTUser) + F("\"\nMQPW:\t\t\t\"") + String(strMQTTPassword) +

@@ -145,8 +145,6 @@ F 3 "" H 6200 5950 50  0001 C CNN
 	1    6200 5950
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	6200 5600 6200 5700
 NoConn ~ 5800 4400
 $Comp
 L power:+3.3V #PWR013
@@ -531,29 +529,16 @@ Wire Wire Line
 $Comp
 L Connector:Conn_01x02_Male J3
 U 1 1 62104B7C
-P 8750 5500
-F 0 "J3" H 8900 5600 50  0000 R CNN
-F 1 "Conn_Device_01x02_Male" H 9250 5700 50  0000 R CNN
-F 2 "" H 8750 5500 50  0001 C CNN
-F 3 "~" H 8750 5500 50  0001 C CNN
-	1    8750 5500
+P 8850 5700
+F 0 "J3" H 9000 5800 50  0000 R CNN
+F 1 "Conn_Device_01x02_Male" H 9350 5900 50  0000 R CNN
+F 2 "" H 8850 5700 50  0001 C CNN
+F 3 "~" H 8850 5700 50  0001 C CNN
+	1    8850 5700
 	-1   0    0    1   
 $EndComp
 Wire Wire Line
 	6600 4900 7150 4900
-Wire Wire Line
-	7150 4900 7150 5400
-Wire Wire Line
-	7150 5400 8550 5400
-Wire Wire Line
-	8550 5500 7150 5500
-Wire Wire Line
-	7150 5500 7150 5700
-Wire Wire Line
-	7150 5700 6200 5700
-Connection ~ 6200 5700
-Wire Wire Line
-	6200 5700 6200 5950
 NoConn ~ 6600 5200
 Text Label 8850 3850 0    50   ~ 0
 +
@@ -565,9 +550,9 @@ Text Label 8850 4250 0    50   ~ 0
 RX
 Text Label 8850 4150 0    50   ~ 0
 TX
-Text Label 8850 5500 0    50   ~ 0
+Text Label 8950 5700 0    50   ~ 0
 COM
-Text Label 8850 5400 0    50   Italic 0
+Text Label 8950 5600 0    50   Italic 0
 XX
 NoConn ~ 6600 4800
 Wire Wire Line
@@ -576,4 +561,36 @@ Wire Wire Line
 	6900 5000 6900 4800
 Wire Wire Line
 	6900 4800 7300 4800
+$Comp
+L Device:R R7
+U 1 1 6271922F
+P 7150 5450
+F 0 "R7" H 7250 5500 50  0000 L CNN
+F 1 "1K" H 7250 5350 50  0000 L CNN
+F 2 "" V 7080 5450 50  0001 C CNN
+F 3 "~" H 7150 5450 50  0001 C CNN
+	1    7150 5450
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8650 5700 7150 5700
+Wire Wire Line
+	7150 4900 7150 5300
+Wire Wire Line
+	7150 5300 8350 5300
+Wire Wire Line
+	8350 5300 8350 5600
+Wire Wire Line
+	8350 5600 8650 5600
+Wire Wire Line
+	6200 5600 6200 5700
+Connection ~ 7150 5300
+Wire Wire Line
+	7150 5600 7150 5700
+Wire Wire Line
+	7150 5700 6200 5700
+Connection ~ 7150 5700
+Connection ~ 6200 5700
+Wire Wire Line
+	6200 5700 6200 5950
 $EndSCHEMATC
