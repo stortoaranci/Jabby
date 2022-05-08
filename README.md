@@ -1,8 +1,8 @@
 # Jabby
-Home Assistant - MQTT Alarm Control Panel support for JABLOTRON OASIS JA-83K
+Home Assistant - MQTT Alarm Control Panel support for JABLOTRON OASIS JA 80 (JA-83K)
 
 ## Intro
-Jabby is a basic IoT device that allows any [JABLOTRON OASIS JA-83K](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
+Jabby is a basic IoT device that allows any [JABLOTRON OASIS 80 (JA-83K)](https://www.jablotron.com/en/about-jablotron/downloads/?level1=2507&level2=2510&_level1=2507&_level2=&_level3=&do=downloadFilterForm-submit) to interact with _Home Assistant_ via _MQTT_.
 
 It is built from inexpensive and easy to find hardware as:
 - [WeMos D1 mini](https://www.wemos.cc/en/latest/d1/d1_mini.html) 
@@ -41,6 +41,81 @@ alarm_control_panel:
 
 where **JabbyXXXXXXXXXXXX** is the name dinamically calculated as unique id of the device.
 
+### Entities
+In addition to the _MQTT Alarm Control Panel_ support, Jabby also supports other sensors with states strictly related to the system. Configuring the entities in _HA_ is possibile as regular _MQTT Sensors_. For instance:
+
+```
+#alarm-system
+  - platform: mqtt
+    name: "jabby_message"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/message"
+    qos: 0
+    icon: mdi:message-alert-outline
+
+  - platform: mqtt
+    name: "jabby_device"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/device"
+    qos: 0
+    icon: mdi:leak
+
+  - platform: mqtt
+    name: "jabby_mode"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/mode"
+    qos: 0
+    icon: mdi:shield-lock-outline
+
+  - platform: mqtt
+    name: "jabby_armed"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/armed"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_triggered"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/triggered"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_activated"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/activated"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_delayed"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/delayed"
+    qos: 0
+
+  - platform: mqtt
+    name: "jabby_warning"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/warning"
+    qos: 0
+    icon: mdi:alert-outline
+
+  - platform: mqtt
+    name: "jabby_battery"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/battery"
+    qos: 0
+    icon: mdi:car-battery
+
+  - platform: mqtt
+    name: "jabby_a"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/a"
+    qos: 0
+    icon: mdi:alpha-a-circle-outline
+
+  - platform: mqtt
+    name: "jabby_b"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/b"
+    qos: 0
+    icon: mdi:alpha-b-circle-outline
+
+  - platform: mqtt
+    name: "jabby_c"
+    state_topic: "tr1/JabbyXXXXXXXXXXXX/c"
+    qos: 0
+    icon: mdi:alpha-c-circle-outline
+```
+can provide a result similar to [this](images/HomeAssistant_Triggered.jpg).
+
 ### Console
 Jabby implements a very basic console for management and test purpouse. For instance it can be used to change networking paramters avoiding to reflash the chip or used for testing the RS485 traffic generated on the bus. A complete list of commands is reported in the file [help.txt](Jabby_sketch/data/help.txt).
 
@@ -64,16 +139,16 @@ If the device is not able to access the Wi-Fi network anymore, then an attempt o
 ### GSM support
 Jabby can be extended by connecting a SIMCOM SIM900 compatible board for future implementations. The idea is to provide remote access to Jabby. Any GPRS modem with TTL@3.3v on the RS232 can be adopted, such as old Nokia mobile phones.
 
-At the moment, nothing is implemented yet.
+At the moment, only the initial setup is implemented.
 
 ## Hardware installation
 The easy way to install the device is to use the terminal of the control panel. Power can be provided by the _Backup Power Supply clamps (+U & GND)_. We suggest to take under control the _OVERLOAD_ indicator to avoid possible issue on the main board.
 
 RS485 signals can be reached using the _A_ and _B_ clamps. Since the standard uses the same differential signaling, heaving a common ground is not mandatory so it's possible to place the device outside of the control panel and just connect the two wires on the serial bus. Bear in mind that the control panel doen't have a true heart connection _(this is just my experience)_ so if you connect an USB cable to the WeMos when the device is physically connected to the main power of the control panel, a common ground connection is extablished with the host. In some cases that behaviour is not desiderable.
 
-To avoid possible power issue, a power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
+A power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
 
-By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_ or _tamper_. Actually, you can trigger the alarm simulating the tampering only by console. In any case "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed.
+By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_, _tamper_. If you plan to configure this set up then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed. To avoid any issue a 1K Ohm resistor is put in paralel to the pin to mantain the espected load during any reset. Another way to trigger the alarm that don't need for connecting to any device port is by simulating a _keypad tampering_.
 
 ## Compiling the sketch
 To compile the software some libraries are required:
@@ -101,14 +176,17 @@ The content of the **Jabby_sketch/data** is intented to be copied inside the ESP
 Finally flash the program and setup a suitable Wi-Fi connection. Now you are ready to play.
 
 ## Arming & disarming
-At the moment Jabby sends the following commands to the bus to arm the system:
-- `*1` to arm in ABC configuration
-- `*2` to arm in A configuration
-- `*3` to arm in B configuration
+At the moment Jabby sends the following arming commands to the bus to arm the system:
+- `*1 + [code]` to arm in ABC configuration
+- `*2 + [code]` to arm in A configuration
+- `*3 + [code]` to arm in B configuration
 
+the code is sent only if requested by the system according to the variable **SET_WO_ACCESS_CODE**. In that case the code **ACCESS_CODE** has to be suitable for the selected mode.
 **A** and **B** configurations are avaiable only if the system is configured in _splitted mode_.
 
 To disarm the system Jabby uses the code provided in the variable **ACCESS_CODE**. In order to disarm the system the code have to be a valid code for the specific arming level. _Master Code_ and _Service Code_ are not necessary and you should avoid using them in your configuration for security reasons. 
 
 ## Security matters
 At the moment Jabby is very far to be "secure". As this project grows up, that will be the next pinpoint to accomplish.
+
+By difining the _SECURE_MQTT_ directive a secure MQTT connection is possible but the drawback is the memory consumption, that's why at the moment the plan to integrate any GSM feature is on hold.
