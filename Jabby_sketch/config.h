@@ -86,7 +86,7 @@ typedef enum {
 #define MQTT_RECONNECT_TIMER              10000
 #define MQTT_LOOP_TIMER                   1000
 #define MQTT_PUBLISH_TIMER                60000
-
+#define PWD_ATTEMPT_TIMER                 20000 
 
 //TRIGGER
 #define TRIGGER_NONE    55

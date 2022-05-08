@@ -14,23 +14,23 @@
 #endif
 
 //Configuration
-char strMQTTServer[50] =  "\0"; //MQTT_SERVER;
+char strMQTTServer[50] =  "\0";                   //MQTT_SERVER;
 int intMQTTPort = MQTT_PORT;
 uint8_t intSetWOAccessCode = SET_WO_ACCESS_CODE;
-char strMQTTUser[50] = "\0"; //MQTT_USER;
-char strMQTTPassword[50] =  "\0"; //MQTT_PASSWORD;
-//char strOTAPassword[50]=  "\0"; //OTA_PASSWORD;
-char strOTAWebServer[50] =  "\0"; //OTA_WEB_SERVER;
+char strMQTTUser[50] = "\0";                      //MQTT_USER;
+char strMQTTPassword[50] =  "\0";                 //MQTT_PASSWORD;
+//char strOTAPassword[50]=  "\0";                 //OTA_PASSWORD;
+char strOTAWebServer[50] =  "\0";                 //OTA_WEB_SERVER;
 int intOTAWebPort = OTA_WEB_PORT;
-//char strOTAWebUser[50] =  "\0"; //OTA_WEB_USER;
-//char strOTAWebPassword[50] =  NULL; //OTA_WEB_PASSWORD;
-char strOTAWebPage[255] =  "\0"; //OTA_WEB_PAGE;
-char strWiFiPassword[100] =  "\0"; //WIFI_PASSWORD;
-char strWiFiSSID[50] =  "\0"; //WIFI_SSID;
-//char strTCPUser[50] =  NULL; //TCP_USER;
-char strTCPPassword[50] =  "\0"; //TCP_PASSWORD;
+//char strOTAWebUser[50] =  "\0";                 //OTA_WEB_USER;
+//char strOTAWebPassword[50] =  NULL;             //OTA_WEB_PASSWORD;
+char strOTAWebPage[255] =  "\0";                  //OTA_WEB_PAGE;
+char strWiFiPassword[100] =  "\0";                //WIFI_PASSWORD;
+char strWiFiSSID[50] =  "\0";                     //WIFI_SSID;
+//char strTCPUser[50] =  NULL;                    //TCP_USER;
+char strTCPPassword[50] =  "\0";                  //TCP_PASSWORD;
 int intTCPPort = TCP_PORT;
-char strAccessCode[5] = "\0"; //ACCESS_CODE
+char strAccessCode[5] = "\0";                     //ACCESS_CODE
 
 //TCP
 struct TCPMessage {
@@ -62,6 +62,7 @@ int intBroadcast = 0;                   //holds the broadcast for all the slots
 int intSub = 0;                         //holds the terminals that want to receive broadcast messages from server;
 int intSubRS485 = 0;                    //holds the terminals that want to receive RS485 packets from server;
 uint8_t intTerminals = 0;               //number of connected clients
+unsigned int intPwdTry = 0;             //number of password attempts
 
 //Wi-Fi
 
@@ -106,17 +107,19 @@ long lngLedBlinkTimer = 0;
 long m = 0;
 
 //Control Panel
-uint8_t cpStatus =    0xFF;   //last known CP status
-uint8_t cpUpToDate =  0;      // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
-uint8_t cpInfo =      0xFF;   //last known CP info
+uint8_t cpStatus =    0xFF;     //last known CP status
+uint8_t cpUpToDate =  0;        // the state of the CP is up-to-date. 0 = not updated; 1 = updated; 2 = force mqtt refresh
+uint8_t cpInfo =      0xFF;     //last known CP info
 bool isCPInfo = false;
-uint8_t cpDevice =    0xFF;   //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
+uint8_t cpDevice =    0xFF;     //last device triggered (51 = Control Panel 0x33; 52 = Key Pad 0x34)
 bool isCPDevice = false;
-uint8_t cpMessage =   0xFF;   //last displayed message
+uint8_t cpMessage =   0xFF;     //last displayed message
 bool isCPMessage = false;
 //uint8_t cpLastEvent = 0xFF;   //last collected event
+long lngLastCPUpdateTime = 0;   //last update time
 
-long lngLastCPUpdateTime = 0; //last update time
+//Password
+long lngLastPwdAttemptTime = 0; //last password attempt time
 
 
 bool setStringVariable(int terminal, char* variable, const char* value, size_t size, charRestriction r) {
@@ -370,6 +373,7 @@ static void handleDisconnect(void* arg, AsyncClient* client) {
       slots[i].active = false;
       slots[i].busy = false;
       slots[i].authenticated = false;
+      slots[i].authAttempts = MAX_TCP_AUTH_ATTEMPTS;
       slots[i].hasData = false;
       strcpy(slots[i].command, "");
       strcpy(slots[i].parameter, "");
@@ -862,14 +866,7 @@ int checkUpdate(int slot, bool reboot) {
 
 
 bool createSequence(int terminal, const char* command) {
-  /*
-    if (serMessages.size() >= MAX_SER_MESSAGES) {
-      if (terminal >= 0) {
-        createMessage (terminal, ERR_DEVICE_BUSY, strlen(ERR_DEVICE_BUSY));
-      }
-      return false;
-    }
-  */
+
   serMessages.push_back (new serMessage);
   serMessages.back()->type = serMessageCommand;
   if (!setStringVariable(terminal, (char *)serMessages.back()->data, command, MAX_SERIAL_SEQ_LEN, charAllowKeypad)) {
@@ -1153,32 +1150,38 @@ void loop() {
     for (int i = 0; i < inMessages.size(); i++) {
 
       if (!slots[inMessages[i]->terminal].authenticated) {
-        if (slots[inMessages[i]->terminal].authAttempts <= 0) { //can be lower than 0 if commands are sent quickly
+        if ( (slots[inMessages[i]->terminal].authAttempts <= 0) || ((intPwdTry>3) && (m<=lngLastPwdAttemptTime)) ) { //authAttempts can be lower than 0 if commands are sent quickly
+
           //close connection
           clients[inMessages[i]->terminal]->close();
-        }
 
-        //check password
-        char password[MAX_TCP_MESSAGE_LEN + 1]; //store the termination of the string
-        strncpy(password, inMessages[i]->data, inMessages[i]->length);
-        password[inMessages[i]->length] = NULL;
-
-        char *p  = strchr(password, '\r');
-        if (p) {
-          *p = '\0';
-        }
-        p  = strchr(password, '\n');
-        if (p) {
-          *p = '\0';
-        }
-
-        if (!strcmp(password, strTCPPassword)) {
-          slots[inMessages[i]->terminal].authenticated = true;
-          createMessage (slots[inMessages[i]->terminal].terminal, INFO_LOGIN_OK, strlen(INFO_LOGIN_OK));
         } else {
-          createMessage (slots[inMessages[i]->terminal].terminal, ERR_AUTH, strlen(ERR_AUTH));
-          slots[inMessages[i]->terminal].authAttempts--;
-        }
+
+          //check password
+          char password[MAX_TCP_MESSAGE_LEN + 1]; //store the termination of the string
+          strncpy(password, inMessages[i]->data, inMessages[i]->length);
+          password[inMessages[i]->length] = NULL;
+  
+          char *p  = strchr(password, '\r');
+          if (p) {
+            *p = '\0';
+          }
+          p  = strchr(password, '\n');
+          if (p) {
+            *p = '\0';
+          }
+  
+          if (!strcmp(password, strTCPPassword)) {
+            slots[inMessages[i]->terminal].authenticated = true;
+            createMessage (slots[inMessages[i]->terminal].terminal, INFO_LOGIN_OK, strlen(INFO_LOGIN_OK));
+            intPwdTry=0;
+          } else {
+            createMessage (slots[inMessages[i]->terminal].terminal, ERR_AUTH, strlen(ERR_AUTH));
+            slots[inMessages[i]->terminal].authAttempts--;
+            intPwdTry++;
+            lngLastPwdAttemptTime = m + (intPwdTry * PWD_ATTEMPT_TIMER);
+          }                  
+        } //test authAttempts
 
       } else {
         //for each message get the commands '\n'
@@ -1839,7 +1842,6 @@ void loop() {
     emptySerialOutput();
     lngLastSerialUpdateTime = m;
   }
-
 
   //test up-to-date
   if (m >= (lngLastCPUpdateTime + CP_MAX_INTERVAL_TIMER)) {
