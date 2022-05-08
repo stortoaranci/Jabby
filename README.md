@@ -146,9 +146,9 @@ The easy way to install the device is to use the terminal of the control panel. 
 
 RS485 signals can be reached using the _A_ and _B_ clamps. Since the standard uses the same differential signaling, heaving a common ground is not mandatory so it's possible to place the device outside of the control panel and just connect the two wires on the serial bus. Bear in mind that the control panel doen't have a true heart connection _(this is just my experience)_ so if you connect an USB cable to the WeMos when the device is physically connected to the main power of the control panel, a common ground connection is extablished with the host. In some cases that behaviour is not desiderable.
 
-To avoid possible power issue, a power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
+A power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
 
-By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_, _tamper_. If you plan to configure this set up then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed. Another way to trigger the alarm that don't need for connecting to any device port is by simulating a _keypad tampering_.
+By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_, _tamper_. If you plan to configure this set up then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed. To avoid any issue a 1K Ohm resistor is put in paralel to the pin to mantain the espected load during any reset. Another way to trigger the alarm that don't need for connecting to any device port is by simulating a _keypad tampering_.
 
 ## Compiling the sketch
 To compile the software some libraries are required:
@@ -188,3 +188,5 @@ To disarm the system Jabby uses the code provided in the variable **ACCESS_CODE*
 
 ## Security matters
 At the moment Jabby is very far to be "secure". As this project grows up, that will be the next pinpoint to accomplish.
+
+By difining the _SECURE_MQTT_ directive a secure MQTT connection is possible but the drawback is the memory consumption, that's why at the moment the plan to integrate any GSM feature is on hold.
