@@ -148,7 +148,7 @@ RS485 signals can be reached using the _A_ and _B_ clamps. Since the standard us
 
 A power selection switch is placed between the DC DC converter and the WeMos in order to temporary power the board by the usb port.
 
-By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_, _tamper_. If you plan to configure this set up then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed. To avoid any issue a 1K Ohm resistor is put in paralel to the pin to mantain the espected load during any reset. Another way to trigger the alarm that don't need for connecting to any device port is by simulating a _keypad tampering_.
+By connecting Jabby to any **device** port of the control panel, it's possible to trigger the alarm in two different ways: _device_, _tamper_. If you plan to configure this set up then "be careful" when you power on/off or reset Jabby when it's configured as a triggerable device, because if the connected port is enabled on the control panel, the alarm may trigger if the system is armed. To avoid any issue a 1K Ohm resistor is put in paralel to the pin to mantain the espected load during any reset. Another way to trigger the alarm that doesn't need for connecting to any device port is by simulating a _keypad tampering_.
 
 ## Compiling the sketch
 To compile the software some libraries are required:
